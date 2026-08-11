@@ -20,8 +20,6 @@ remote is established.
   Works (results are filtered) but wasteful + semantically loose. Make federation
   kind-aware: a command declares which sources/result-kinds it needs, or skip a source
   whose output the command discards. Next-phase refinement (skeleton S2 proof holds).
-- **Config discovery is cwd-relative** (`IRIS_CONFIG` env, else `./sources.toml`). Add a
-  packaged default / XDG lookup so `iris` works from any directory.
 - **Test hygiene**: the constellation fixture builder is duplicated across
   `test_federation.py`, `test_mcp_adapter.py`, `test_s2_proof.py` — extract a shared
   `conftest.py` fixture.
