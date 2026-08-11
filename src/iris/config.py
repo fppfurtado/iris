@@ -15,10 +15,13 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class SourceSpec:
-    """One declared source: its registered name and its options."""
+    """One declared source: its instance ``name``, its ``type`` (which implementation
+    to use — the registry key), and its options. When ``type`` is empty the name is
+    used as the type (a built-in registered under its own name)."""
 
     name: str
     options: dict = field(default_factory=dict)
+    type: str = ""
 
 
 @dataclass(frozen=True)
@@ -36,7 +39,11 @@ def load_config(path: str | Path) -> Config:
     """
     data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     declared = data.get("sources") or {}
-    specs = [SourceSpec(name=name, options=dict(opts or {})) for name, opts in declared.items()]
+    specs = []
+    for name, opts in declared.items():
+        opts = dict(opts or {})
+        source_type = opts.pop("type", "")
+        specs.append(SourceSpec(name=name, options=opts, type=source_type))
     return Config(sources=specs)
 
 

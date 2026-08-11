@@ -33,8 +33,8 @@ class _Good:
 
 def test_federate_isolates_a_failing_source() -> None:
     reg = Registry()
-    reg.register("boom", lambda opts: _Boom())
-    reg.register("good", lambda opts: _Good())
+    reg.register("boom", lambda name, opts: _Boom())
+    reg.register("good", lambda name, opts: _Good())
     config = Config(sources=[SourceSpec("boom", {}), SourceSpec("good", {})])
 
     result = federate(config, Query(), reg)

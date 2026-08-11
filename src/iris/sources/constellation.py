@@ -38,7 +38,10 @@ def _repo_paths(mrconfig: Path) -> list[Path]:
 
 
 def _node_from_catalog(name: str, catalog: Path) -> tuple[Node, list[Relation]]:
-    meta = yaml.safe_load(catalog.read_text(encoding="utf-8")) or {}
+    # A catalog-info.yaml may be multi-document (`---`-separated entities); take the
+    # first mapping document (the Component).
+    docs = [d for d in yaml.safe_load_all(catalog.read_text(encoding="utf-8")) if isinstance(d, dict)]
+    meta = docs[0] if docs else {}
     metadata = meta.get("metadata") or {}
     spec = meta.get("spec") or {}
     tags = list(metadata.get("tags") or [])
@@ -61,10 +64,9 @@ def _node_from_catalog(name: str, catalog: Path) -> tuple[Node, list[Relation]]:
 class ConstellationSource:
     """Reads the constellation (repos + tags + relations), read-only."""
 
-    name = "constellation"
-
-    def __init__(self, options: dict | None = None) -> None:
+    def __init__(self, name: str = "constellation", options: dict | None = None) -> None:
         opts = options or {}
+        self.name = name
         self._mrconfig = opts.get("mrconfig", "~/.mrconfig")
 
     def read(self, query: Query) -> SourceResult:
@@ -89,8 +91,8 @@ class ConstellationSource:
         return SourceResult(nodes=nodes, relations=relations, ok=True, note=note)
 
 
-def _factory(options: dict) -> Source:
-    return ConstellationSource(options)
+def _factory(name: str, options: dict) -> Source:
+    return ConstellationSource(name, options)
 
 
 DEFAULT.register("constellation", _factory)
