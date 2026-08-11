@@ -1,0 +1,9 @@
+# iris source declarations.
+#
+# Each [sources.<name>] block enables a registered source. Federation reads ONLY
+# the declared sources, in order; removing a block removes that source without
+# touching the others. A table body (if any) becomes that source's options.
+
+[sources.mneme]
+
+[sources.constellation]
