@@ -39,7 +39,7 @@ def _make_constellation(tmp_path: Path) -> Path:
 
 def test_returns_nodes_with_tags_and_flags_incomplete_coverage(tmp_path) -> None:
     mrconfig = _make_constellation(tmp_path)
-    result = ConstellationSource({"mrconfig": str(mrconfig)}).read(Query())
+    result = ConstellationSource("constellation", {"mrconfig": str(mrconfig)}).read(Query())
 
     by_id = {n.id: n for n in result.nodes}
     assert set(by_id) == {"relatorios-h3", "superpowers"}
@@ -56,6 +56,6 @@ def test_returns_nodes_with_tags_and_flags_incomplete_coverage(tmp_path) -> None
 
 def test_edges_become_relations(tmp_path) -> None:
     mrconfig = _make_constellation(tmp_path)
-    result = ConstellationSource({"mrconfig": str(mrconfig)}).read(Query())
+    result = ConstellationSource("constellation", {"mrconfig": str(mrconfig)}).read(Query())
     rels = [(r.from_, r.type, r.to) for r in result.relations]
     assert ("relatorios-h3", "dependsOn", "component:default/gnucash-workbench") in rels
