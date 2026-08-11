@@ -1,0 +1,25 @@
+# iris source declarations (example). Copy to `sources.toml` (gitignored) and adapt,
+# or point IRIS_CONFIG at your own file.
+#
+# Each [sources.<name>] declares a source instance. `type` selects the implementation
+# (the registry maps type -> factory); the remaining keys are that type's options.
+# Federation reads ONLY declared sources, in order; removing a block removes that
+# source without touching the others.
+
+# A repo/asset registry from an `mr` manifest + Backstage catalog-info.yaml files.
+[sources.constellation]
+type = "constellation"
+# mrconfig = "~/.mrconfig"   # optional; realpath / symlink-aware
+
+# A generic CLI-JSON source: shell out to ANY command that emits JSON, and map its
+# item fields into the model. This is how you plug a knowledge base or notes tool
+# that has a `--json` read — by config, with no code change. Example (a notes CLI):
+[sources.notes]
+type = "cli-json"
+command = ["notes", "search", "{query}", "--json"]   # {query} is substituted per call
+items = "results"                                     # dotted path to the item list
+[sources.notes.map]
+ref = "id"                                            # dotted paths into each item
+excerpt = "summary"
+# trust = "meta.status"
+# age = "meta.age_days"

@@ -12,3 +12,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# user source config (may reference private tools) — ship sources.example.toml instead
+sources.toml
