@@ -20,9 +20,17 @@ from iris.core.source import Query, Source, SourceResult
 
 Runner = Callable[[list[str]], str]
 
+_DEFAULT_TIMEOUT = 30.0
 
-def _default_runner(cmd: list[str]) -> str:
-    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+
+def _make_default_runner(timeout: float) -> Runner:
+    """A runner that enforces a timeout — a hung CLI raises TimeoutExpired, which
+    federation isolates into a note rather than hanging the whole read."""
+
+    def _run(cmd: list[str]) -> str:
+        return subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=timeout).stdout
+
+    return _run
 
 
 def _dig(obj: Any, path: str) -> Any:
@@ -39,10 +47,11 @@ def _dig(obj: Any, path: str) -> Any:
 class CliJsonSource:
     """A read-only source over a configured ``--json`` CLI command."""
 
-    def __init__(self, name: str, options: dict | None = None, runner: Runner = _default_runner) -> None:
+    def __init__(self, name: str, options: dict | None = None, runner: Runner | None = None) -> None:
         opts = options or {}
         self.name = name
-        self._runner = runner
+        self._timeout = float(opts.get("timeout", _DEFAULT_TIMEOUT))
+        self._runner = runner if runner is not None else _make_default_runner(self._timeout)
         self._command: list[str] = list(opts.get("command", []))
         self._items_path: str = opts.get("items", "items")
         self._map: dict[str, str] = dict(opts.get("map", {}))
