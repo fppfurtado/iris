@@ -50,8 +50,9 @@ def load_config(path: str | Path) -> Config:
 def _xdg_config_path() -> Path:
     """The user-level config location: ``$XDG_CONFIG_HOME/iris/sources.toml``
     (default ``~/.config/iris/sources.toml``)."""
-    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
-    return Path(base) / "iris" / "sources.toml"
+    base = os.environ.get("XDG_CONFIG_HOME")
+    root = Path(base) if base else Path.home() / ".config"
+    return root / "iris" / "sources.toml"
 
 
 def discover_config_path() -> Path:
