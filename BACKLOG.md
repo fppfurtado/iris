@@ -25,6 +25,12 @@ remote is established.
   `conftest.py` fixture.
 - **mneme `relation`/`inventory` reads lack `--json`** (spike SP-T3). If a later phase needs
   them, request the flag upstream in mneme or add a text-parse fallback.
+- **Repro-env: pin Python 3.12.** No `.python-version`, so a fresh `uv sync` resolves to
+  the system's newest interpreter (3.14 observed), where `fastmcp>=2,<3` is not installable —
+  the suite then fails to collect. The existing `.venv` is 3.12; a new worktree/machine has
+  no such luck. Add a `.python-version` (or a lower `requires-python` ceiling / CI matrix) so
+  the toolchain is reproducible without an ad-hoc `--python 3.12`. Surfaced 2026-08-11 building
+  config-discovery.
 
 ## Deferred by the Spec/PRD (future phases)
 - Facets: finances/gnucash, env-stack, tjpa work-corpus (grow-by-validated-need).
