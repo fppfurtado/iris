@@ -14,6 +14,12 @@ remote is established.
   if that reference is unwanted; full J-trace stays recoverable via the private contracts.
 
 ## Product / engineering follow-ups
+- **Federation runs every source per command (review finding #1).** `repos` (needs only
+  nodes) still invokes grounding sources — e.g. a cli-json source runs with an empty
+  query on every `repos`; `ground` triggers the full constellation scan it discards.
+  Works (results are filtered) but wasteful + semantically loose. Make federation
+  kind-aware: a command declares which sources/result-kinds it needs, or skip a source
+  whose output the command discards. Next-phase refinement (skeleton S2 proof holds).
 - **Config discovery is cwd-relative** (`IRIS_CONFIG` env, else `./sources.toml`). Add a
   packaged default / XDG lookup so `iris` works from any directory.
 - **Test hygiene**: the constellation fixture builder is duplicated across
