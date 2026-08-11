@@ -7,6 +7,7 @@ this file plus one source module — no other module is touched (PR5).
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,3 +38,8 @@ def load_config(path: str | Path) -> Config:
     declared = data.get("sources") or {}
     specs = [SourceSpec(name=name, options=dict(opts or {})) for name, opts in declared.items()]
     return Config(sources=specs)
+
+
+def active_config() -> Config:
+    """Load the active source declarations (``IRIS_CONFIG`` env, else ``sources.toml``)."""
+    return load_config(os.environ.get("IRIS_CONFIG", "sources.toml"))

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import os
-
 import typer
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
-from iris.config import Config, load_config
+from iris.config import Config, active_config
 from iris.core.federation import FederationResult, federate
 from iris.core.source import Query
 
@@ -20,8 +18,7 @@ app = typer.Typer(
 
 
 def _load_config() -> Config:
-    """Load the source declarations (``IRIS_CONFIG`` env, else ``sources.toml``)."""
-    return load_config(os.environ.get("IRIS_CONFIG", "sources.toml"))
+    return active_config()
 
 
 def _emit_notes(result: FederationResult) -> None:
