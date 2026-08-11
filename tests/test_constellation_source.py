@@ -59,3 +59,23 @@ def test_edges_become_relations(tmp_path) -> None:
     result = ConstellationSource("constellation", {"mrconfig": str(mrconfig)}).read(Query())
     rels = [(r.from_, r.type, r.to) for r in result.relations]
     assert ("relatorios-h3", "dependsOn", "component:default/gnucash-workbench") in rels
+
+
+def test_multi_document_catalog_info_is_parsed(tmp_path) -> None:
+    # A catalog-info.yaml may hold several `---`-separated entities; the first
+    # (mapping) document is the Component and must parse without error.
+    repo = tmp_path / "multi"
+    repo.mkdir()
+    (repo / "catalog-info.yaml").write_text(
+        "metadata:\n  tags: [multi]\nspec:\n  type: library\n"
+        "---\n"
+        "kind: Location\nmetadata:\n  name: extra\n",
+        encoding="utf-8",
+    )
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(f"[{repo}]\ncheckout = x\n", encoding="utf-8")
+
+    result = ConstellationSource("constellation", {"mrconfig": str(mrconfig)}).read(Query())
+
+    by_id = {n.id: n for n in result.nodes}
+    assert "multi" in by_id["multi"].tags  # first document parsed, not a YAML crash
