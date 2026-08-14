@@ -110,158 +110,44 @@ absent, the self-checks still bind.
 
 <!-- /agent-kit operational-floor v7 -->
 
-<!-- agent-kit session-boundary ritual v9 — single source: agent-kit/onboarding/session-boundary-ritual.md
+<!-- agent-kit session-boundary ritual v12 — single source: agent-kit/onboarding/session-boundary-ritual.md
      OPERATOR-PERSONAL extension (it names my own ecosystem tools — mneme, meta-bridge, backlog, and the
      agent-kit substrate itself — and is agent-kit-local, never published to strangers). Copy this whole
      block into your repo's own AGENTS.md / CLAUDE.md, BELOW the operational-floor block's closing marker
      (this is the "extend below the marker" seam — it is deliberately NOT part of the minimal shared floor).
      Extend BELOW this block's own closing marker; never edit INSIDE the block. Re-copy when the version
-     bumps. -->
+     bumps.
+
+     v12 (Spec session-ritual-delivery v2 — the #770 instance-1 reprocess of #771/#768): this block is now
+     a STUB, not the enumeration. The authoritative, machine-readable enumeration of every ritual axis —
+     both bounded contexts, with per-axis presence conditions, actions, write-twins, guidance depth, and
+     the close checkpoint's deterministic signals — is the RITUAL MANIFEST:
+       deployed:  ~/.claude/hooks/ritual-manifest.md   (read this one at runtime)
+       canonical: agent-kit/onboarding/ritual-manifest.md
+     Do NOT restate axes here or anywhere else — one home per context, by construction. -->
 
 ## Session-boundary ritual (open + close)
 
-At the START and the END of a work session, run the ritual below. It is **assisted, not automatic**:
-surface the checklist and act only on my confirmation — never self-execute a step silently, and respect
-each step's preconditions (e.g. the journal target being logged in). **Graceful skip:** a step whose
-target surface is absent on this repo/machine is skipped, not failed — the ritual degrades to whatever
-surfaces are present. The trigger is **presence + this block being read natively** at the session
-boundary: any "opening"/"wrapping up" cue fires it, no special phrase required.
+At the START and the END of a work session, execute the session-boundary ritual from its
+**manifest** — `~/.claude/hooks/ritual-manifest.md` (fallback when a machine has no deploy: the
+canonical `agent-kit/onboarding/ritual-manifest.md`). The ritual is **assisted, not automatic**:
+entries surface and enumerate; judgment stays in the loop (`awaiting-confirmation` is a valid
+disposition). **Graceful skip** is per-entry, via each entry's `presence:` condition — an absent
+surface is an explicit `no-op`, never an error and never a silent omission.
 
-**On session OPEN — ground the state:**
-- **Ground the sovereign KB** (the mneme *instance* at `~/mneme` — the KB data, reached by the `mneme`
-  CLI): `mneme index rebuild >/dev/null && mneme ground --query "<session theme>"` — pull the relevant
-  prior context before orienting.
-- **Reconcile the PKM bridge** where used (meta-bridge `reconcile`): verify-state + dedup cross-store
-  before work begins.
-- **Name the executing model-tier** (`opus | sonnet`) as a session covariate — NOT a gate (throughline is
-  model-agnostic and cannot enforce tier). Recording which tier drives the session lets a finding filed at
-  close carry an honest `tier:` marker (the close-side agent-kit feedback-path rung below), keeping tier an
-  auditable covariate rather than an invisible one (agent-kit #357).
-- **Surface the open GTD next-actions** (the agent-consumed next-action axis — a *sibling* read to
-  `ground`, NOT folded into it): `mneme task list --status open --instance ~/mneme` — surface the open
-  next-actions the agent tracks in the sovereign `~/mneme/knowledge/gtd.md`. No aggregator consumes this
-  axis, so cross-cutting (often repo-less) next-actions stay invisible unless read HERE. Distinct from
-  `ground` (learnings) and initiative-state below — the three axes stay separate. **Agent-consumed class
-  only** (per the mneme J7 verdict, 2026-08-04 — operator-executed real-world tasks are a different axis).
-- **Surface coordination-program state** where a program seed is present: resolve
-  `working-state/programs/<program>/coordination.SEED.md` — `working-state` is a git repo **sibling of this
-  repo**, NOT a `$HOME` subdir (derive it from the repo root, climbing out of an in-repo `.worktrees/<slug>`
-  first, and verify it resolves before use). Surface its roll-up + next-actionable, honoring the seed's two
-  axes — **trust** (operator-ratified vs agent-derived) and **execution** (executed / rider-open /
-  cutover-pending). Take each initiative's **disposition + progress from the newest mneme journal block
-  naming it** (newest-wins — the seed's hand-authored roll-up goes stale), reading the seed only for its
-  edges + next-actionable. **Read-only** (it surfaces state; it is never the execution mechanism).
-  **Graceful skip** when the sibling `working-state` doesn't resolve.
+- **OPEN:** the `phase: open` entries normally arrive ALREADY INJECTED in context by the
+  `ritual_open_surface.py` SessionStart hook (mechanical delivery — session-start momentum cannot
+  skip it). Execute the injected checklist before any front-door skill or first work act, reporting
+  each entry inline. If no checklist was injected (hook unwired / manifest absent on this machine),
+  read the manifest's open entries directly and do the same.
+- **CLOSE:** on the operator's wrap-up cue, compose BOTH contexts from the manifest:
+  1. the `repo-close` entries — the loose-end sweep entrypoint (`backlog:session-close` or this
+     repo's equivalent) plus the pointer entries the repo's own floor/CI already enforce;
+  2. the `operator-boundary` `phase: close` entries — executed per their manifest guidance.
+  Emit ONE disposition line per axis (both contexts) in a fenced `ritual-close-dispositions` block:
+  `<axis-id>: ran|skipped-with-reason|no-op|awaiting-confirmation [— reason]`. An omitted axis is a
+  violation; an aggregate "all clear" is non-conforming.
+- **Backstop:** the deterministic close checkpoint (SessionEnd → next SessionStart) reads the SAME
+  manifest's embedded signals — a missed write-back axis surfaces at the next open; dispose it then.
 
-**On session CLOSE — deposit the why:**
-- **Sweep loose ends** (`backlog:session-close`, or this repo's session-close equivalent): file surfaced
-  follow-ups / record decisions — leave no loose end.
-- **Capture agent-consumed next-actions into GTD** (the write-twin of the OPEN GTD read). For repo-less
-  next-actions that emerged from THIS session's agentic work AND that the **agent** acts on in sessions
-  (the agent-consumed class): append `- [ ] <task>` under the existing structure in
-  `~/mneme/knowledge/gtd.md`, then `mneme block stamp knowledge/gtd.md --instance ~/mneme` to assign `^id`s.
-  **Angle-bracket hygiene:** never a raw `<tag>` in the drafted line — an unclosed `<…>` opens an HTML block
-  that swallows every FOLLOWING checkbox; use `{braces}`, backticks, or prose.
-  **Class discriminator** (this rung is the agent-consumed class only): repo-less + agent-acts-in-session →
-  `gtd.md`; repo-less + operator-acts-in-the-world (reminders, life-admin) → the class-2 residence, NOT
-  `gtd.md` (gated on a manual-ergonomic UI, mneme#158). Do **not** absorb cross-repo work that already routes
-  to a forge tracker (issues/labels/trailers). Ledger-relevant ops keep `--actor agent`; `block stamp` is
-  mechanical (no `--actor`). **Archive-done:** if `gtd.md` carries ≥1 `- [x]` line, move those blocks to
-  `knowledge/gtd-arquivadas.md` preserving the `^id`.
-- **Check the agent-kit feedback path** — ONLY when THIS repo consumes agent-kit/throughline (skip
-  otherwise). For each gap/drift the session surfaced HERE, ask whether its cause roots — partly or wholly —
-  in the shared **agent-kit substrate** (a skill / posture / doctrine gap), not merely in this repo's local
-  code. Attribute it honestly, collapsing *"is this agent-kit's fault?"* into *"would a checkable GATE (not
-  spirit) have caught it at the weakest supported tier?"* — and **guard over-attribution** (the
-  confirmation-bias hole: *asked → it agrees* is not evidence):
-  - **substrate** — a skill/posture/doctrine gap → agent-kit's; **file upstream**.
-  - **spirit-not-gate** — a correct norm with no checkable gate surviving the weakest tier's momentum →
-    agent-kit's; **file upstream**.
-  - **model** — a weak-tier execution miss no gate could catch at the weakest supported tier → NOT the
-    substrate; it stays local (the execution-tier-policy residual, agent-kit #357).
-
-  When it IS substrate / spirit-not-gate, file it into agent-kit's OWN tracker WITH its provenance, so the
-  receiving-side audit (`build/audit_cross_repo_origin.py`, agent-kit #355) sees it from the tracker alone —
-  this stamps the RECEIVING-side marker (agent-kit defines the schema; the filing act stamps it); the finding
-  becomes an agent-kit-local item carrying its origin, NOT a cross-repo portfolio:
-
-  ```sh
-  gh label create "src:<this-repo>" -R fppfurtado/agent-kit 2>/dev/null || true   # once per new source repo
-  gh issue create -R fppfurtado/agent-kit \
-    --title "<terse finding>" \
-    --body  "<context + Origin block: source-repo / executing model-tier / attribution>" \
-    --label "origin:cross-repo,src:<this-repo>,tier:<opus|sonnet>,attr:<substrate|spirit-not-gate|model>"
-  ```
-- **Refine the operator profile from this session's evidence** (agent-mediated, surface-first). If this
-  session surfaced real evidence about how the operator works, thinks, or decides — a preference stated, a
-  pattern *contradicted*, a pattern's evidence base strengthened by a genuinely new independent datum (not a
-  restatement), a new working/interaction/operating tendency — PROPOSE a refinement to the sovereign profile
-  artifact on the approve→act seam: draft the specific edit (an `Observed:`-backed, dated line — or the
-  retirement of a contradicted pattern), surface it, and apply ONLY on the operator's approval — never
-  self-edit the profile silently. The act is **resolve → land → materialize-and-verify**, because this step
-  *writes to one layer and is read from another* — writing the edit somewhere is not finishing:
-  1. **Resolve the SOURCE, not the read surface.** **Probe, don't restate the path** (the drift class that
-     stranded this step once, agent-kit #593): the global `~/.claude/CLAUDE.md`'s own operator-profile
-     section is the single source of truth for where the artifact lives — resolve the path THERE at use
-     time, never a value hardcoded in this block. Then test whether that path is a **generated** surface (a
-     template / `do not edit` header, or the renderer's own query — e.g. `chezmoi source-path <file>`); if
-     so the edit target is the **source**, and the resolved path is only the read surface a later render
-     must reach.
-  2. **Edit + land the source under the operational floor.** If the source lives in a git repo the floor
-     binds — including the **canonical-path-bound carve-out** (operational-floor v5 / agent-kit #606) when
-     the renderer reads a configured absolute source dir: branch-in-place + PR *there*, never a
-     `.worktrees/<slug>` the renderer never looks at (the render would be a silent no-op while branch + PR +
-     merge all appear to succeed). Persist to the **committed** source — never a bare edit-the-live-file +
-     render that strands the refinement uncommitted (lost on a fresh renderer init).
-  3. **Materialize, targeted — then VERIFY at the read path.** Render only the **affected paths** (a bare
-     whole-tree render also executes pending `run_` scripts — unrelated system side effects), then confirm
-     the new text actually reached **the read surface the next session consumes** — the *same* surface
-     resolved in sub-step 1, never a path re-hardcoded here (that would re-open the #593 drift the resolve
-     step exists to close): the always-on `~/.claude/CLAUDE.md` section for a lean-region refinement, or the
-     fuller artifact's own resolved path for one that lands only there —
-     `grep -q "<distinctive phrase from the new line>" "<read surface resolved in sub-step 1>" || echo "refinement did NOT reach the read path"`.
-     This one cheap check is the gate — it catches BOTH silent failures (edited the generated surface → next
-     render overwrites it; edited the source but never rendered → invisible to every session). **On a failed
-     grep the render did not land — the refinement is NOT applied:** re-resolve the source (sub-step 1) and
-     re-render; if a re-render still doesn't reach the read path, surface the failure to the operator rather
-     than closing the step. **Renderer-agnostic:** where the profile is a plain file (write == read, no
-     render) sub-steps 1/3 collapse to the edit itself — no problem to solve.
-
-  Discipline: propose from **evidence this session actually produced**, never to re-derive mature content
-  (usability/evolution, not a content rework) and never merely to *restate* an existing line — a bare
-  re-confirmation adds no evidence and risks self-confirming bias (its own epistemic-status warning), so only
-  a genuinely new datum warrants a proposed edit; a genuine contradiction UPDATES or RETIRES the pattern
-  rather than explaining the behavior away. Most sessions surface nothing to propose → skip.
-  **Graceful skip:** if the global CLAUDE.md names no such artifact, or the artifact it names is absent, skip.
-- **Enumerate durable artifacts born this session — outcome-independent** (agent-kit #719). BEFORE the
-  mneme registration below, list the durable artifacts this session **created or discovered** — files,
-  credentials, hosts, service endpoints, configs — **regardless of whether the session's nominal result was
-  substantive or null.** A null/inconclusive finding suppresses the perceived salience of any *incidental*
-  artifact left behind (the null becomes the frame of the whole session, and the collateral artifact is
-  never nominated) — the exact #719 miss: a credentials file (`~/.pgpass`, 5 hosts) born during a
-  null-result triage stayed invisible to `mneme ground` for 6 days. Ask this **separately** from *"did the
-  session have a substantive finding?"* — one question must not absorb the other. Each durable artifact is a
-  **candidate on two distinct axes** (surface as a candidate, never mint — respect the spine's curation gate):
-  - **findability** → propose it as an entity in the `entity propose` step below, so a later `ground`
-    retrieves it (the axis #719 names);
-  - **reproducibility** → a **secret / config / unit born outside the managed declarative tree** ALSO owes
-    the env-stack **birth-capture** (surface it for a chezmoi / Bitwarden / mise disposition — that reflex
-    is env-stack-specific and lives in the operator's global doctrine, not vendored here). The axes do not
-    substitute: a chezmoi-captured secret is *reproducible* yet still not *findable* via `ground`, and an
-    entity-proposed fact is *findable* yet not *reproducible* on a machine rebuild. **Graceful degrade** to
-    the findability axis alone where no env-stack reflex is present.
-- **Register the session in the mneme _instance_** (`~/mneme`, via the `mneme` CLI — this deposits KB
-  *data*; it is NOT the mneme *system* repo, whose tooling issues live in its own tracker — keep the two
-  distinct):
-  - `mneme journal add` — deposit the session's journal block(s) (body via stdin). The close can
-    happen in **two moments**: a deliberate 2nd deposit of the SAME session takes `--complement`
-    (appends a sibling block); without the flag, re-invoking with the same session-id is a silent
-    no-op — the 2nd body is discarded (mneme#41).
-  - `mneme entity propose` — **propose the session's entities, CONCEPTS INCLUDED** (not only proper
-    names). This step is decoupled from `journal add` and is silently skipped when not named, so name it
-    at every close.
-  - `mneme index rebuild` — refresh the read-side index.
-- **Synthesize the human journal** where Logseq is present (meta-bridge `journal-close`): a
-  human-friendly session synthesis in the Logseq journal.
-
-<!-- /agent-kit session-boundary ritual v9 -->
+<!-- /agent-kit session-boundary ritual v12 -->
