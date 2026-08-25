@@ -21,7 +21,7 @@ Project language is **English** by default — code, comments, CLI help, docs, a
 
 <!-- floor block vendored below; never edit inside it, extend below the closing marker -->
 
-<!-- agent-kit operational-floor v7 — single source: agent-kit/onboarding/operational-floor.md
+<!-- agent-kit operational-floor v12 — single source: agent-kit/onboarding/operational-floor.md
      Copy this whole block into your repo's own AGENTS.md / CLAUDE.md, below your own content.
      Extend BELOW the closing marker; never edit INSIDE the block. Re-copy when the version bumps.
      Distillation baseline — last verified faithful against the maintainer's root operational-floor
@@ -35,7 +35,19 @@ Project language is **English** by default — code, comments, CLI help, docs, a
      session — a landing-free analysis/hygiene pass owes a disposition for each gap it surfaces too (#635).
      v7 (2026-08-10) sharpens the Cycle-close capture sweep from spirit to a checkable step: disposition is
      per-item to a durable surface (an aggregate "all handled" and a chat/close-summary/un-attested-prose
-     mention are not durable), so an odd-class follow-up cannot slip through bulk reasoning (#708).
+     mention are not durable), so an odd-class follow-up cannot slip through bulk reasoning (#708). v8
+     (2026-08-16) adds the governing-Spec scan sub-step to the Declare-the-route rung: before a skip-Spec
+     lightweight route commits, scan for an existing frozen Spec governing the touched files (#781). v9
+     (2026-08-16) gives the Cycle-close capture sweep its during-flow FEED — the session findings ledger,
+     appended at detection so process-class findings survive to close (#863) — and aligns the spec-file
+     pattern list to the tools' full set (adds `spec_*.md`). v10 (2026-08-17) extends the
+     Verify-before-destructive rung with the repo-archive case — verify `HEAD == @{u}` + a clean tree
+     before archiving a repo that serves as a delete-backstop (#852; evidence mneme#194). v11
+     (2026-08-17) adds the teardown half to the Session isolation rung: sweep gitignored working state
+     out of a session worktree BEFORE removal — a bare `git worktree remove` silently deletes it (#840;
+     evidence #798, n=3). v12 (2026-08-18) adds the Stage-by-explicit-paths rung: stage changed paths by
+     name, never a broad `git add -A`/`add .`, so a stale worktree copy cannot silently revert a sibling
+     session's landed work (#888).
      This generic block intentionally omits the maintainer-internal
      release/attestation rungs (a per-PR method self-check, issue-close-evidence, the PR attestation
      lines, and release-due surfacing for published units) — they depend on maintainer-specific tooling
@@ -50,7 +62,7 @@ effort size (a smaller effort takes fewer steps, never a thinner floor). They ru
 a deterministic guard is installed (see the last rung) it enforces the same rung, but the behavior binds
 with or without it.
 
-- **Session isolation.** Work in a dedicated git worktree — created **under `.worktrees/<slug>` inside the
+- **Session isolation.** <!-- rung:session-isolation --> Work in a dedicated git worktree — created **under `.worktrees/<slug>` inside the
   repo** (a gitignored directory), on a feature branch — from session start, solo included. The
   main/default worktree stays a neutral base: no session does feature work on it. Never run two
   git-mutating sessions against one working tree. If you start and find the base on another session's
@@ -61,40 +73,69 @@ with or without it.
   a `.gitmodules`, also run `git submodule update --init --recursive` in the new worktree — submodules are
   **versioned** (a gitlink to a pinned commit) that `git worktree add` does **not** init, so a build that
   depends on them fails otherwise; **init, don't copy** (they are not `.worktreeinclude` entries).
+  **Teardown is sweep-then-remove:** before removing a session worktree, sweep its gitignored working
+  state OUT to the main tree — `git worktree remove` refuses on tracked modifications but **silently
+  deletes gitignored files** (the in-worktree `.throughline/dossiers/`, plus any path a tracked
+  `.worktreesweep` manifest at the repo root lists). A throughline install ships the sweep
+  (`python3 sub-tools/worktree_sweep.py --repo <main-root> --worktree <worktree-path>`); without it,
+  copy those paths out by hand before `git worktree remove`.
   **Carve-out — canonical-path-bound tooling:** for a repo whose tooling reads a *configured canonical
   absolute path* rather than the working tree (e.g. a chezmoi source dir), a `.worktrees/<slug>` worktree
   relocates edits where the tool never looks (no isolation, actively misleading) — **branch in-place** in
   the canonical dir instead; PR-per-cycle + the concurrency check still bind (guard the concurrency check —
   a bare pull/checkout on the shared dir can collide).
-- **Concurrency check at pickup.** Before working an existing tracker item, check whether a live session
+- **Stage by explicit paths.** <!-- rung:stage-by-explicit-paths --> Stage what you changed by naming the paths (`git add <path> …`) — never a
+  broad `git add -A` / `git add .`. A broad add re-stages whatever the worktree's index happens to hold, so
+  in a parallel-session repo a stale copy of a file a *sibling* session already landed gets silently
+  re-committed at its old contents — reverting that sibling's work, with no merge conflict to warn you.
+  Review `git status` / `git diff --cached` before committing; stage additions and deletions explicitly.
+- **Concurrency check at pickup.** <!-- rung:concurrency-check-at-pickup --> Before working an existing tracker item, check whether a live session
   already owns it (a sibling worktree/branch for it, or a frozen design / open PR on the item). If one
   exists, stand down — do not produce competing artifacts; defer or coordinate.
-- **Issue-first.** A significant effort — one worth framing, or expected to outlive a session — opens its
+- **Issue-first.** <!-- rung:issue-first --> A significant effort — one worth framing, or expected to outlive a session — opens its
   tracker item BEFORE work begins, so the effort is visible from the start and survives a dead session.
-- **Declare the route before solution mechanics.** For each item you pick up, name the route on two axes —
+- **Declare the route before solution mechanics.** <!-- rung:declare-the-route-before-solution-mechanics --> For each item you pick up, name the route on two axes —
   problem space (frame the problem, vs work from an already-frozen problem brief) and solution space
   (a lightweight build, vs a full design pipeline) — each with a one-line reason, *before* touching the
   solution. A trivial fix names its door too; "worked ad-hoc, through no door" is never a valid route.
-- **PR-per-cycle; the agent never merges.** Every cycle lands via a pull/merge request off the feature
+  Before committing a "lightweight build, skip Spec" route, check whether an existing frozen Spec already
+  governs the code the change touches — a throughline install ships the deterministic scan
+  (`spec_surface.py match --repo . --paths <touched files>`); without it, scan the repo's spec files
+  (`spec-*.md` / `spec_*.md` / `*.spec.md`) by hand. One found → the route defaults to *amend that Spec*, not skip it.
+- **PR-per-cycle; the agent never merges.** <!-- rung:pr-per-cycle-the-agent-never-merges --> Every cycle lands via a pull/merge request off the feature
   branch — never a direct push to the default branch. The agent stops at a merge-ready PR (checks green,
   review attested) and hands off; the **human performs the merge** (the terminal, least-reversible step).
-- **Review before land (the land-gate).** Built code lands on the default branch only after the judgment
+- **Review before land (the land-gate).** <!-- rung:review-before-land-the-land-gate --> Built code lands on the default branch only after the judgment
   review pass ran — attested — or a reasoned waiver is on record. The bar is *ran-or-waived*, not
   findings-resolved: acting on findings stays human judgment; the gate only ensures review was not silently
   skipped.
-- **Cycle-close capture sweep.** At the close of ANY session — a landing cycle OR a landing-free
-  analysis/review/hygiene pass that lands nothing — sweep for surfaced follow-ups, drifts, and gaps and
+- **Cycle-close capture sweep.** <!-- rung:cycle-close-capture-sweep --> An error, gap, drift, or optimization candidate detected MID-flow
+  appends ONE line, at detection, to the session findings ledger — `.throughline/dossiers/session-findings-<slug>.md`
+  in the working worktree (a worktree-less or in-place session → the same path at the repo root):
+  create the directory if absent and keep it gitignored (a
+  `.throughline/.gitignore` carrying `/dossiers/`); it is a CONVENTION, not a tool dependency — with no
+  throughline install, any gitignored session-notes file serves the same role. A line is owed when the
+  finding is not already tracked, outlives the session or names a class, and was not fixed in-flow with
+  zero class-residue — so the close sweep reads a FILE, never working memory. Before removing the
+  session worktree, sweep the ledger's lines to their dispositions (or copy the file out) — a bare
+  worktree removal deletes it. At the close of ANY session — a landing cycle OR a
+  landing-free analysis/review/hygiene pass that lands nothing — sweep the ledger PLUS any follow-ups, drifts, and gaps recalled at close (the ledger augments the
+  sweep's feed, it never bars a late entry) and
   dispose each **per item, to a durable surface**: enumerate each surfaced follow-up (an odd-class one — a
   one-off "run `X`" mechanical step — counts too) and name where it durably lands (a filed tracker item, or a
   recorded reason it needs none), never swallowed — whether or not the session lands. An **aggregate** "all
   handled" and a mention in **chat, an ephemeral close summary, or un-attested prose** are NOT durable
   dispositions: reasoning over the class lets an odd-class item slip and land nowhere. A landing cycle records
   each where the change lands; a landing-free pass records each in the pass's own output.
-- **Verify before any destructive action.** Before `rm` / overwrite / `clean`, verify the target against
+- **Verify before any destructive action.** <!-- rung:verify-before-any-destructive-action --> Before `rm` / overwrite / `clean`, verify the target against
   the real tree (tracked-files / status / an explicit path check) — never a bare directory listing, which
   goes stale across branch churn. Before `git stash pop`/`apply`/`drop`, check `git stash list` and target
   an explicit `stash@{n}` (the stash stack is shared across all worktrees, so a bare pop may apply an alien
-  stash onto the wrong tree). Prefer read-only inspection when you only need to look.
+  stash onto the wrong tree); prefer read-only inspection when you only need to look. Same class —
+  archiving a repo that serves as a delete-backstop (`gh repo archive` / forge Settings → Archive):
+  archiving freezes the remote history read-only — verify `HEAD == @{u}` and a clean tree (nothing
+  load-bearing untracked or uncommitted) BEFORE archiving, else the backstop freezes incomplete history
+  and "delete-because-backed-up" stops being true.
 
 **The methodology.** The full working cycle is **throughline** — one guided front door (**frame** the
 problem) → solution design → **build** → **review** — available as installed agent skills. Bring a problem
@@ -108,15 +149,19 @@ throughline-built code (use the land-gate CI recipe your throughline install shi
 protection. These are per-harness / per-platform add-ons, not a dependency of the norm — where they are
 absent, the self-checks still bind.
 
-<!-- /agent-kit operational-floor v7 -->
+<!-- /agent-kit operational-floor v12 -->
 
-<!-- agent-kit session-boundary ritual v12 — single source: agent-kit/onboarding/session-boundary-ritual.md
-     OPERATOR-PERSONAL extension (it names my own ecosystem tools — mneme, meta-bridge, backlog, and the
+<!-- agent-kit session-boundary ritual v13 — single source: agent-kit/onboarding/session-boundary-ritual.md
+     OPERATOR-PERSONAL extension (it names my own ecosystem tools — mneme, backlog, and the
      agent-kit substrate itself — and is agent-kit-local, never published to strangers). Copy this whole
      block into your repo's own AGENTS.md / CLAUDE.md, BELOW the operational-floor block's closing marker
      (this is the "extend below the marker" seam — it is deliberately NOT part of the minimal shared floor).
      Extend BELOW this block's own closing marker; never edit INSIDE the block. Re-copy when the version
      bumps.
+
+     v13 (agent-kit #856 — mneme#194 Logseq-triad cutover): dropped the retired `meta-bridge` from the
+     named ecosystem tools above; it is no longer a live surface. No operative change — the stub body
+     enumerates no ritual axes (it points to the manifest); the correction is to this provenance header only.
 
      v12 (Spec session-ritual-delivery v2 — the #770 instance-1 reprocess of #771/#768): this block is now
      a STUB, not the enumeration. The authoritative, machine-readable enumeration of every ritual axis —
@@ -150,4 +195,4 @@ surface is an explicit `no-op`, never an error and never a silent omission.
 - **Backstop:** the deterministic close checkpoint (SessionEnd → next SessionStart) reads the SAME
   manifest's embedded signals — a missed write-back axis surfaces at the next open; dispose it then.
 
-<!-- /agent-kit session-boundary ritual v12 -->
+<!-- /agent-kit session-boundary ritual v13 -->
