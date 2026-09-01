@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from iris.core.model import GroundHit
 from iris.core.registry import DEFAULT
-from iris.core.source import Query, Source, SourceResult
+from iris.core.source import KIND_HITS, Query, Source, SourceResult
 
 Runner = Callable[[list[str]], str]
 
@@ -46,6 +46,10 @@ def _dig(obj: Any, path: str) -> Any:
 
 class CliJsonSource:
     """A read-only source over a configured ``--json`` CLI command."""
+
+    # Emits grounding hits only; contributes no nodes/relations. A node-only query
+    # (e.g. ``repos``) skips this source — no subprocess is spawned for a discarded read.
+    produces = frozenset({KIND_HITS})
 
     def __init__(self, name: str, options: dict | None = None, runner: Runner | None = None) -> None:
         opts = options or {}

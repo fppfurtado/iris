@@ -17,7 +17,7 @@ import yaml
 
 from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
-from iris.core.source import Query, Source, SourceResult
+from iris.core.source import KIND_NODES, Query, Source, SourceResult
 
 _SECTION = re.compile(r"(?m)^\[(?P<name>[^\]]+)\]\s*$")
 _NON_REPO_SECTIONS = {"DEFAULT", "ALIAS"}
@@ -63,6 +63,9 @@ def _node_from_catalog(name: str, catalog: Path) -> tuple[Node, list[Relation]]:
 
 class ConstellationSource:
     """Reads the constellation (repos + tags + relations), read-only."""
+
+    # Emits the node graph (nodes + relations); no hits.
+    produces = frozenset({KIND_NODES})
 
     def __init__(self, name: str = "constellation", options: dict | None = None) -> None:
         opts = options or {}
