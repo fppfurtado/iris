@@ -5,8 +5,6 @@ query that declares the kinds it consumes skips a source that produces none of t
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from typer.testing import CliRunner
 
 from iris.cli import app
@@ -95,26 +93,8 @@ def test_federation_reads_a_source_that_declares_no_kinds() -> None:
     assert [n.id for n in result.nodes] == ["u"]  # read despite the hits-only query
 
 
-def _fixture_config(tmp_path: Path) -> Path:
-    tagged = tmp_path / "relatorios-h3"
-    tagged.mkdir()
-    (tagged / "catalog-info.yaml").write_text(
-        "metadata:\n  tags: [pro-bono]\nspec:\n  type: service\n", encoding="utf-8"
-    )
-    other = tmp_path / "meta-system"
-    other.mkdir()
-    (other / "catalog-info.yaml").write_text(
-        "metadata:\n  tags: [meta]\nspec:\n  type: library\n", encoding="utf-8"
-    )
-    mrconfig = tmp_path / ".mrconfig"
-    mrconfig.write_text(f"[{tagged}]\ncheckout = x\n\n[{other}]\ncheckout = y\n", encoding="utf-8")
-    config = tmp_path / "sources.toml"
-    config.write_text(f'[sources.constellation]\nmrconfig = "{mrconfig}"\n', encoding="utf-8")
-    return config
-
-
-def test_repos_tag_returns_matching_repos_in_one_call(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("IRIS_CONFIG", str(_fixture_config(tmp_path)))
+def test_repos_tag_returns_matching_repos_in_one_call(constellation_config, monkeypatch) -> None:
+    monkeypatch.setenv("IRIS_CONFIG", str(constellation_config))
     result = runner.invoke(app, ["repos", "--tag", "pro-bono"])
     assert result.exit_code == 0
     assert "relatorios-h3" in result.output  # the pro-bono repo, with state
