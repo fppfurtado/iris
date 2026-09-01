@@ -33,6 +33,12 @@ def federate(config: Config, query: Query, registry: Registry = DEFAULT) -> Fede
     """
     result = FederationResult()
     for source in registry.resolve(config):
+        # Kind-aware skip (iris#7): a query that declares the kinds it consumes skips a
+        # source that produces none of them — no wasted read of a result we'd discard.
+        # A source that does not declare ``produces`` is always read (backward-compat).
+        produces = getattr(source, "produces", None)
+        if query.kinds is not None and produces is not None and produces.isdisjoint(query.kinds):
+            continue
         try:
             part = source.read(query)
         except Exception as exc:  # per-source isolation (PR5 cross-cutting)

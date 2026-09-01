@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import active_config
 from iris.core.federation import federate
-from iris.core.source import Query
+from iris.core.source import KIND_HITS, KIND_NODES, Query
 
 mcp = FastMCP("iris")
 
@@ -23,14 +23,14 @@ mcp = FastMCP("iris")
 @mcp.tool()
 def ground(query: str) -> list[dict]:
     """Ground a query across federated sources (read-only)."""
-    result = federate(active_config(), Query(text=query))
+    result = federate(active_config(), Query(text=query, kinds=frozenset({KIND_HITS})))
     return [asdict(hit) for hit in result.hits]
 
 
 @mcp.tool()
 def repos(tag: str | None = None) -> list[dict]:
     """List repos with tags/roles, optionally filtered by tag (read-only)."""
-    result = federate(active_config(), Query(tag=tag))
+    result = federate(active_config(), Query(tag=tag, kinds=frozenset({KIND_NODES})))
     nodes = [n for n in result.nodes if n.kind == "repo"]
     if tag:
         nodes = [n for n in nodes if tag in n.tags]
@@ -40,7 +40,7 @@ def repos(tag: str | None = None) -> list[dict]:
 @mcp.resource("iris://nodes")
 def nodes() -> list[dict]:
     """All federated nodes (read-only enumerable)."""
-    result = federate(active_config(), Query())
+    result = federate(active_config(), Query(kinds=frozenset({KIND_NODES})))
     return [asdict(node) for node in result.nodes]
 
 

@@ -7,7 +7,7 @@ import typer
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
 from iris.core.federation import FederationResult, federate
-from iris.core.source import Query
+from iris.core.source import KIND_HITS, KIND_NODES, Query
 
 app = typer.Typer(
     name="iris",
@@ -29,7 +29,7 @@ def _emit_notes(result: FederationResult) -> None:
 @app.command()
 def repos(tag: str = typer.Option(None, "--tag", help="Filter repos by tag.")) -> None:
     """List repos with their tags/roles, optionally filtered by tag (read-only)."""
-    result = federate(_load_config(), Query(tag=tag))
+    result = federate(_load_config(), Query(tag=tag, kinds=frozenset({KIND_NODES})))
     nodes = [n for n in result.nodes if n.kind == "repo"]
     if tag:
         nodes = [n for n in nodes if tag in n.tags]
@@ -46,7 +46,7 @@ def repos(tag: str = typer.Option(None, "--tag", help="Filter repos by tag.")) -
 @app.command()
 def ground(query: str = typer.Argument(..., help="The query to ground.")) -> None:
     """Ground a query across federated sources (read-only)."""
-    result = federate(_load_config(), Query(text=query))
+    result = federate(_load_config(), Query(text=query, kinds=frozenset({KIND_HITS})))
     for hit in result.hits:
         suffix = f"  ({hit.trust}{' · ' + hit.age if hit.age else ''})" if hit.trust else ""
         typer.echo(f"{hit.ref}{suffix}")
@@ -61,7 +61,7 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
 
     Fase 1 heuristic: the repos+tags plus grounding on the task's terms, in one pass.
     """
-    result = federate(_load_config(), Query(text=task))
+    result = federate(_load_config(), Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
     repos_ = [n for n in result.nodes if n.kind == "repo"]
     if repos_:
         typer.echo("## repos")
