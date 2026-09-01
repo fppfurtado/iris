@@ -21,9 +21,12 @@ Project language is **English** by default — code, comments, CLI help, docs, a
 
 <!-- floor block vendored below; never edit inside it, extend below the closing marker -->
 
-<!-- agent-kit operational-floor v12 — single source: agent-kit/onboarding/operational-floor.md
+<!-- agent-kit operational-floor v13 — single source: agent-kit/onboarding/operational-floor.md
      Copy this whole block into your repo's own AGENTS.md / CLAUDE.md, below your own content.
      Extend BELOW the closing marker; never edit INSIDE the block. Re-copy when the version bumps.
+     This block is a SHIPPED ASSET: it stays English-as-shipped regardless of your repo's `## Language`
+     `project` setting — re-copy verbatim, never translate it (localizing a shipped asset is separate
+     product-i18n, not authored content). Your own below-marker sections follow your `project` normally.
      Distillation baseline — last verified faithful against the maintainer's root operational-floor
      section on 2026-07-17. v2 (2026-07-20) adds the `.worktrees/<slug>` worktree-location convention to
      the Session isolation rung, aligning it with the maintainer root floor (#338). v3 (2026-07-24)
@@ -47,7 +50,10 @@ Project language is **English** by default — code, comments, CLI help, docs, a
      out of a session worktree BEFORE removal — a bare `git worktree remove` silently deletes it (#840;
      evidence #798, n=3). v12 (2026-08-18) adds the Stage-by-explicit-paths rung: stage changed paths by
      name, never a broad `git add -A`/`add .`, so a stale worktree copy cannot silently revert a sibling
-     session's landed work (#888).
+     session's landed work (#888). v13 (2026-09-01) adds the liveness half to the Concurrency-check rung: a
+     foreign `.worktrees/<slug>` is presumed live until a positive death signal, and a positive liveness
+     probe (`lsof +D` / `/proc/*/cwd`) precedes any destructive action on it — landing-absence (unpushed/no
+     PR) is in-progress work, not death (#1210).
      This generic block intentionally omits the maintainer-internal
      release/attestation rungs (a per-PR method self-check, issue-close-evidence, the PR attestation
      lines, and release-due surfacing for published units) — they depend on maintainer-specific tooling
@@ -91,7 +97,13 @@ with or without it.
   Review `git status` / `git diff --cached` before committing; stage additions and deletions explicitly.
 - **Concurrency check at pickup.** <!-- rung:concurrency-check-at-pickup --> Before working an existing tracker item, check whether a live session
   already owns it (a sibling worktree/branch for it, or a frozen design / open PR on the item). If one
-  exists, stand down — do not produce competing artifacts; defer or coordinate.
+  exists, stand down — do not produce competing artifacts; defer or coordinate. A foreign `.worktrees/<slug>`
+  is **presumed live until a positive death signal** (operator confirmation · the branch already
+  merged/closed · an explicit end marker) — landing-absence (unpushed · no PR · no comment) is in-progress
+  work, not death. Before any destructive action on it (worktree remove · teardown-sweep · rebase-onto), run
+  a positive liveness probe (`lsof +D <worktree>`, or scan `/proc/*/cwd` for a process cwd'd inside — a
+  parallel session's command line carries no slug, so a slug grep of `ps` misses it) and read git mtimes
+  against the real wall clock, rather than reading landing-absence as death.
 - **Issue-first.** <!-- rung:issue-first --> A significant effort — one worth framing, or expected to outlive a session — opens its
   tracker item BEFORE work begins, so the effort is visible from the start and survives a dead session.
 - **Declare the route before solution mechanics.** <!-- rung:declare-the-route-before-solution-mechanics --> For each item you pick up, name the route on two axes —
@@ -149,7 +161,7 @@ throughline-built code (use the land-gate CI recipe your throughline install shi
 protection. These are per-harness / per-platform add-ons, not a dependency of the norm — where they are
 absent, the self-checks still bind.
 
-<!-- /agent-kit operational-floor v12 -->
+<!-- /agent-kit operational-floor v13 -->
 
 <!-- agent-kit session-boundary ritual v13 — single source: agent-kit/onboarding/session-boundary-ritual.md
      OPERATOR-PERSONAL extension (it names my own ecosystem tools — mneme, backlog, and the
