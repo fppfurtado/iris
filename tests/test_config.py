@@ -38,9 +38,9 @@ def test_declared_source_is_federated_undeclared_is_absent() -> None:
 
 def test_type_selects_implementation_name_is_the_instance() -> None:
     reg = _registry("cli-json")
-    config = Config(sources=[SourceSpec("mneme", {"x": 1}, type="cli-json")])
+    config = Config(sources=[SourceSpec("notes", {"x": 1}, type="cli-json")])
     resolved = reg.resolve(config)
-    assert [s.name for s in resolved] == ["mneme"]  # instance name, resolved via type
+    assert [s.name for s in resolved] == ["notes"]  # instance name, resolved via type
 
 
 def test_unknown_type_skipped_without_touching_others() -> None:
@@ -53,15 +53,15 @@ def test_load_config_parses_type_and_strips_it_from_options(tmp_path) -> None:
     toml = tmp_path / "sources.toml"
     toml.write_text(
         "[sources.constellation]\n\n"
-        '[sources.mneme]\ntype = "cli-json"\ncommand = ["mneme", "ground", "{query}", "--json"]\n',
+        '[sources.notes]\ntype = "cli-json"\ncommand = ["notes", "search", "{query}", "--json"]\n',
         encoding="utf-8",
     )
     config = load_config(toml)
     by_name = {s.name: s for s in config.sources}
     assert by_name["constellation"].type == ""  # no type -> name-fallback at resolve
-    assert by_name["mneme"].type == "cli-json"
-    assert "type" not in by_name["mneme"].options  # type is not left in options
-    assert by_name["mneme"].options["command"][0] == "mneme"
+    assert by_name["notes"].type == "cli-json"
+    assert "type" not in by_name["notes"].options  # type is not left in options
+    assert by_name["notes"].options["command"][0] == "notes"
 
 
 def _isolate_discovery(monkeypatch, tmp_path) -> None:

@@ -17,14 +17,14 @@ _CANNED = json.dumps(
 )
 
 _OPTIONS = {
-    "command": ["mneme", "ground", "--query", "{query}", "--json"],
+    "command": ["notes", "search", "{query}", "--json"],
     "items": "items",
     "map": {"ref": "ref", "excerpt": "excerpt", "trust": "trust.status", "age": "trust.age_days"},
 }
 
 
 def test_cli_json_normalizes_via_field_map() -> None:
-    src = CliJsonSource("mneme", _OPTIONS, runner=lambda cmd: _CANNED)
+    src = CliJsonSource("notes", _OPTIONS, runner=lambda cmd: _CANNED)
     result = src.read(Query(text="q"))
     assert len(result.hits) == 1
     hit = result.hits[0]
@@ -48,4 +48,4 @@ def test_cli_json_substitutes_query_in_command() -> None:
 
 
 def test_cli_json_name_is_instance_name() -> None:
-    assert CliJsonSource("mneme", {}).name == "mneme"
+    assert CliJsonSource("notes", {}).name == "notes"
