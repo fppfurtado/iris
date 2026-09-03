@@ -11,6 +11,7 @@ normalization is testable without the tool installed.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from typing import Any, Callable
 
@@ -28,7 +29,13 @@ def _make_default_runner(timeout: float) -> Runner:
     federation isolates into a note rather than hanging the whole read."""
 
     def _run(cmd: list[str]) -> str:
-        return subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=timeout).stdout
+        # Inject a generic caller marker into the child environment so any source CLI
+        # iris shells out to can detect it was invoked BY iris (vs. called directly by
+        # something else). Generic by construction — no tool is special-cased.
+        env = {**os.environ, "IRIS_CALLER": "iris"}
+        return subprocess.run(
+            cmd, capture_output=True, text=True, check=True, timeout=timeout, env=env
+        ).stdout
 
     return _run
 

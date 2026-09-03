@@ -13,27 +13,36 @@ from dataclasses import asdict
 from fastmcp import FastMCP
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
-from iris.config import active_config
+from iris.config import Config, active_config
 from iris.core.federation import federate
 from iris.core.source import KIND_HITS, KIND_NODES, Query
+from iris.telemetry import log_request
 
 mcp = FastMCP("iris")
+
+
+def _source_names(config: Config) -> list[str]:
+    return [spec.name for spec in config.sources]
 
 
 @mcp.tool()
 def ground(query: str) -> list[dict]:
     """Ground a query across federated sources (read-only)."""
-    result = federate(active_config(), Query(text=query, kinds=frozenset({KIND_HITS})))
+    config = active_config()
+    result = federate(config, Query(text=query, kinds=frozenset({KIND_HITS})))
+    log_request("ground", query, hits=len(result.hits), nodes=0, sources=_source_names(config))
     return [asdict(hit) for hit in result.hits]
 
 
 @mcp.tool()
 def repos(tag: str | None = None) -> list[dict]:
     """List repos with tags/roles, optionally filtered by tag (read-only)."""
-    result = federate(active_config(), Query(tag=tag, kinds=frozenset({KIND_NODES})))
+    config = active_config()
+    result = federate(config, Query(tag=tag, kinds=frozenset({KIND_NODES})))
     nodes = [n for n in result.nodes if n.kind == "repo"]
     if tag:
         nodes = [n for n in nodes if tag in n.tags]
+    log_request("repos", tag or "", hits=0, nodes=len(nodes), sources=_source_names(config))
     return [asdict(node) for node in nodes]
 
 
