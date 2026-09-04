@@ -102,6 +102,19 @@ iris ground "<query>"         # ground a query across federated sources
 iris context "<task>"         # assemble the integral context relevant to a task
 ```
 
+`context` **synthesizes** rather than juxtaposes: when a `tracker` source is declared, it joins each
+repo with its **open issues** (a genuine cross-source composition — the repo comes from one source, its
+issues from another) and renders them together:
+
+```
+## repos
+meta-system  [meta]
+  - meta-system#42  wire the new adapter
+  - meta-system#47  pin the dependency
+## grounding
+…
+```
+
 All commands are **read-only**. Diagnostic notes are printed to stderr (prefixed `#`), so stdout stays
 clean for piping.
 
