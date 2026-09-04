@@ -23,3 +23,17 @@ ref = "id"                                            # dotted paths into each i
 excerpt = "summary"
 # trust = "meta.status"
 # age = "meta.age_days"
+
+# A `tracker` source: open issues per repo from a forge CLI (gh/glab), joined to the repo registry
+# by identity to compose `repo ⋈ open-issues`. Source-agnostic by construction — you name the CLI
+# and the field map, NEVER an org/host/instance: the forge (incl. a private/institutional one) is
+# resolved from each repo checkout's own git remote, so nothing here discloses it. The CLI is run
+# with cwd set to each repo path discovered from the shared repo registry (`mrconfig`).
+[sources.tracker]
+type = "tracker"
+# mrconfig = "~/.mrconfig"                              # optional; the same registry constellation uses
+command = ["gh", "issue", "list", "--state", "open", "--json", "number,title"]  # or a glab equivalent
+# items = ""                                            # dotted path to the list ("" = the top-level array)
+[sources.tracker.map]
+number = "number"                                      # issue number field (glab: "iid")
+title = "title"                                        # issue title field

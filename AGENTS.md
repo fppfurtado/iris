@@ -17,6 +17,13 @@ context delivery in one symbol.
 
 Project language is **English** by default — code, comments, CLI help, docs, and commit messages.
 
+## Domain model
+
+The durable domain — ubiquitous language, the seam rule, and cross-feature invariants — lives in
+`docs/domain.md` (per-effort acceptance stays in each effort's frozen Spec, never copied there).
+
+throughline: domain-glossary
+
 ## Working norm (operational floor)
 
 <!-- floor block vendored below; never edit inside it, extend below the closing marker -->

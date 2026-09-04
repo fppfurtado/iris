@@ -48,7 +48,13 @@ def test_registered_sources_expose_no_mutation_method() -> None:
     # Resolve the built-in sources and audit their public surface.
     import iris.sources  # noqa: F401  (triggers self-registration)
 
-    config = Config(sources=[SourceSpec("notes", {}, type="cli-json"), SourceSpec("constellation", {})])
+    config = Config(
+        sources=[
+            SourceSpec("notes", {}, type="cli-json"),
+            SourceSpec("constellation", {}),
+            SourceSpec("tracker", {}, type="tracker"),
+        ]
+    )
     sources = DEFAULT.resolve(config)
     assert sources, "expected built-in sources to be registered"
     for source in sources:

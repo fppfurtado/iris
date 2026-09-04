@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
+from iris.core.compose import compose_repo_issues
 from iris.core.federation import federate
 from iris.core.source import KIND_HITS, KIND_NODES, Query
 from iris.telemetry import log_request
@@ -44,6 +45,27 @@ def repos(tag: str | None = None) -> list[dict]:
         nodes = [n for n in nodes if tag in n.tags]
     log_request("repos", tag or "", hits=0, nodes=len(nodes), sources=_source_names(config))
     return [asdict(node) for node in nodes]
+
+
+@mcp.tool()
+def context(task: str) -> dict:
+    """Assemble repos ⋈ their open issues plus grounding, off the SAME composer the CLI uses
+    (read-only)."""
+    config = active_config()
+    result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
+    composed = compose_repo_issues(result)
+    log_request(
+        "context", task, hits=len(result.hits), nodes=len(composed.repos), sources=_source_names(config)
+    )
+    return {
+        "repos": [
+            {"repo": asdict(rw.repo), "issues": [asdict(i) for i in rw.issues]}
+            for rw in composed.repos
+        ],
+        "unmatched": [asdict(i) for i in composed.unmatched],
+        "grounding": [asdict(hit) for hit in result.hits],
+        "notes": result.notes + composed.notes,
+    }
 
 
 @mcp.resource("iris://nodes")

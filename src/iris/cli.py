@@ -6,6 +6,7 @@ import typer
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
+from iris.core.compose import compose_repo_issues
 from iris.core.federation import FederationResult, federate
 from iris.core.source import KIND_HITS, KIND_NODES, Query
 from iris.telemetry import log_request
@@ -68,16 +69,23 @@ def ground(query: str = typer.Argument(..., help="The query to ground.")) -> Non
 def context(task: str = typer.Argument(..., help="The task to assemble context for.")) -> None:
     """Assemble the integral context relevant to a task (read-only).
 
-    Fase 1 heuristic: the repos+tags plus grounding on the task's terms, in one pass.
+    Synthesizes repos ⋈ their open issues (the cross-source join) plus grounding on the task's
+    terms, in one pass.
     """
     config = _load_config()
     result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
-    repos_ = [n for n in result.nodes if n.kind == "repo"]
-    if repos_:
+    composed = compose_repo_issues(result)
+    if composed.repos:
         typer.echo("## repos")
-        for node in repos_:
-            tags = f"  [{', '.join(node.tags)}]" if node.tags else ""
-            typer.echo(f"{node.id}{tags}")
+        for rw in composed.repos:
+            tags = f"  [{', '.join(rw.repo.tags)}]" if rw.repo.tags else ""
+            typer.echo(f"{rw.repo.id}{tags}")
+            for issue in rw.issues:
+                typer.echo(f"  - {issue.id}  {issue.title}")
+    if composed.unmatched:
+        typer.echo("## unmatched issues")
+        for issue in composed.unmatched:
+            typer.echo(f"  - {issue.id}  {issue.title}")
     if result.hits:
         typer.echo("## grounding")
         for hit in result.hits:
@@ -85,8 +93,10 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
             if hit.excerpt:
                 typer.echo(f"  {hit.excerpt}")
     _emit_notes(result)
+    for note in composed.notes:
+        typer.echo(f"# {note}", err=True)
     log_request(
-        "context", task, hits=len(result.hits), nodes=len(repos_), sources=_source_names(config)
+        "context", task, hits=len(result.hits), nodes=len(composed.repos), sources=_source_names(config)
     )
 
 
