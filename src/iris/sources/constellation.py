@@ -10,7 +10,6 @@ still returned as a node, and the result is flagged as incomplete-coverage.
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 
 import yaml
@@ -18,23 +17,7 @@ import yaml
 from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_NODES, Query, Source, SourceResult
-
-_SECTION = re.compile(r"(?m)^\[(?P<name>[^\]]+)\]\s*$")
-_NON_REPO_SECTIONS = {"DEFAULT", "ALIAS"}
-
-
-def _repo_paths(mrconfig: Path) -> list[Path]:
-    """Parse ``mrconfig`` section headers into absolute repo paths."""
-    text = mrconfig.read_text(encoding="utf-8")
-    paths: list[Path] = []
-    for match in _SECTION.finditer(text):
-        name = match.group("name").strip()
-        if name in _NON_REPO_SECTIONS:
-            continue
-        expanded = os.path.expandvars(os.path.expanduser(name))
-        if os.path.isabs(expanded) or "/" in expanded:
-            paths.append(Path(expanded))
-    return paths
+from iris.sources._repos import identity, repo_paths
 
 
 def _node_from_catalog(name: str, catalog: Path) -> tuple[Node, list[Relation]]:
@@ -74,12 +57,12 @@ class ConstellationSource:
 
     def read(self, query: Query) -> SourceResult:
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
-        repos = _repo_paths(mrconfig)
+        repos = repo_paths(mrconfig)
         nodes: list[Node] = []
         relations: list[Relation] = []
         missing = 0
         for repo in repos:
-            name = repo.name
+            name = identity(repo)
             catalog = repo / "catalog-info.yaml"
             if catalog.is_file():
                 node, rels = _node_from_catalog(name, catalog)
