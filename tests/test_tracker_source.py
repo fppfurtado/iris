@@ -83,5 +83,30 @@ def test_nested_items_path_and_field_map(tmp_path):
     assert res.nodes[0].title == "glab-style"
 
 
+def test_unexpected_shape_degrades_instead_of_malformed_nodes(tmp_path):
+    # a wrapped object with `items` mis-configured (unset) must NOT iterate dict keys into `#None` nodes
+    cfg, _ = _mrconfig(tmp_path, "alpha")
+
+    def runner(cmd, cwd):
+        return '{"data": {"issues": [{"number": 1, "title": "t"}]}}'  # a dict, but items path unset
+
+    src = TrackerSource("tracker", {"mrconfig": str(cfg), "command": ["gh"]}, runner=runner)
+    res = src.read(Query(kinds=frozenset({KIND_NODES})))
+    assert res.nodes == []
+    assert not res.ok
+    assert "unexpected-shape" in res.note
+
+
+def test_issue_without_number_is_skipped(tmp_path):
+    cfg, _ = _mrconfig(tmp_path, "alpha")
+
+    def runner(cmd, cwd):
+        return '[{"title": "no number here"}, {"number": 2, "title": "ok"}]'
+
+    src = TrackerSource("tracker", {"mrconfig": str(cfg), "command": ["gh"]}, runner=runner)
+    res = src.read(Query(kinds=frozenset({KIND_NODES})))
+    assert [n.id for n in res.nodes] == ["alpha#2"]  # the numberless issue is skipped, not `alpha#None`
+
+
 def test_produces_is_nodes_only():
     assert TrackerSource("tracker").produces == frozenset({KIND_NODES})

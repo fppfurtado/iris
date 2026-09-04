@@ -81,3 +81,28 @@ def test_context_joins_open_issues_under_their_repo(tmp_path, monkeypatch) -> No
     # the issue is rendered under its repo (the cross-source join), not as a bare list
     assert "meta-system#5" in result.output
     assert "ISSUE-TITLE" in result.output
+
+
+def test_context_surfaces_unmatched_issue(tmp_path, monkeypatch) -> None:
+    # constellation sees `alpha`; the tracker (a DIFFERENT mrconfig) sees `ghost` — so ghost's issue
+    # matches no repo node and must surface under `## unmatched issues` (the F6 identity-miss), not vanish.
+    alpha = tmp_path / "alpha"
+    alpha.mkdir()
+    con_mr = tmp_path / "con.mrconfig"
+    con_mr.write_text(f"[{alpha}]\ncheckout = x\n", encoding="utf-8")
+    ghost = tmp_path / "ghost"
+    ghost.mkdir()
+    trk_mr = tmp_path / "trk.mrconfig"
+    trk_mr.write_text(f"[{ghost}]\ncheckout = x\n", encoding="utf-8")
+    cfg = tmp_path / "sources.toml"
+    cfg.write_text(
+        f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{con_mr}"\n\n'
+        f'[sources.tracker]\ntype = "tracker"\nmrconfig = "{trk_mr}"\n'
+        f'command = ["python3", "-c", "{_FAKE_ISSUES}"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("IRIS_CONFIG", str(cfg))
+    result = runner.invoke(app, ["context", "t"])
+    assert result.exit_code == 0
+    assert "## unmatched issues" in result.output
+    assert "ghost#5" in result.output

@@ -13,11 +13,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from typing import Any, Callable
+from typing import Callable
 
 from iris.core.model import GroundHit
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_HITS, Query, Source, SourceResult
+from iris.sources._json import dig
 
 Runner = Callable[[list[str]], str]
 
@@ -40,17 +41,6 @@ def _make_default_runner(timeout: float) -> Runner:
     return _run
 
 
-def _dig(obj: Any, path: str) -> Any:
-    """Follow a dotted path into nested dicts; return None if any hop is absent."""
-    cur = obj
-    for part in path.split("."):
-        if isinstance(cur, dict):
-            cur = cur.get(part)
-        else:
-            return None
-    return cur
-
-
 class CliJsonSource:
     """A read-only source over a configured ``--json`` CLI command."""
 
@@ -70,18 +60,18 @@ class CliJsonSource:
     def read(self, query: Query) -> SourceResult:
         argv = [part.replace("{query}", query.text) for part in self._command]
         data = json.loads(self._runner(argv))
-        items = _dig(data, self._items_path) or []
+        items = dig(data, self._items_path) or []
         hits = [self._hit(item) for item in items]
         return SourceResult(hits=hits)
 
     def _hit(self, item: dict) -> GroundHit:
         age_path = self._map.get("age")
-        age_val = _dig(item, age_path) if age_path else None
+        age_val = dig(item, age_path) if age_path else None
         trust_path = self._map.get("trust")
         return GroundHit(
-            ref=str(_dig(item, self._map.get("ref", "ref")) or ""),
-            excerpt=str(_dig(item, self._map.get("excerpt", "excerpt")) or ""),
-            trust=str(_dig(item, trust_path) or "") if trust_path else "",
+            ref=str(dig(item, self._map.get("ref", "ref")) or ""),
+            excerpt=str(dig(item, self._map.get("excerpt", "excerpt")) or ""),
+            trust=str(dig(item, trust_path) or "") if trust_path else "",
             age=f"{age_val}d" if age_val is not None else "",
         )
 

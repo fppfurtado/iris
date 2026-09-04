@@ -16,11 +16,12 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_NODES, Query, Source, SourceResult
+from iris.sources._json import dig
 from iris.sources._repos import identity, repo_paths
 
 # A runner takes the forge argv and the repo checkout to run it in, and returns stdout.
@@ -41,17 +42,6 @@ def _make_default_runner(timeout: float) -> Runner:
         ).stdout
 
     return _run
-
-
-def _dig(obj: Any, path: str) -> Any:
-    """Follow a dotted path into nested dicts; return None if any hop is absent."""
-    cur = obj
-    for part in path.split("."):
-        if isinstance(cur, dict):
-            cur = cur.get(part)
-        else:
-            return None
-    return cur
 
 
 class TrackerSource:
@@ -87,15 +77,24 @@ class TrackerSource:
             except Exception:  # per-repo isolation: absent/unauth/timeout/bad-JSON degrades this repo
                 failed += 1
                 continue
-            items = _dig(data, self._items_path) if self._items_path else data
-            for item in items or []:
-                number = _dig(item, self._map.get("number", "number"))
+            items = dig(data, self._items_path) if self._items_path else data
+            if not isinstance(items, list):
+                # unexpected shape (e.g. a wrapped object with `items` mis-configured): degrade this
+                # repo rather than iterate a dict's keys into malformed `#None` nodes.
+                failed += 1
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                number = dig(item, self._map.get("number", "number"))
+                if number is None:
+                    continue  # an issue without an identifiable number cannot key a stable node
                 node_id = f"{ident}#{number}"
                 nodes.append(
                     Node(
                         id=node_id,
                         kind="issue",
-                        title=str(_dig(item, self._map.get("title", "title")) or ""),
+                        title=str(dig(item, self._map.get("title", "title")) or ""),
                         source=self.name,
                     )
                 )
@@ -103,7 +102,7 @@ class TrackerSource:
         note = ""
         ok = True
         if failed:
-            note = f"{failed}/{len(repos)} repos unreadable (forge absent/unauth/timeout)"
+            note = f"{failed}/{len(repos)} repos unreadable (forge absent/unauth/timeout/unexpected-shape)"
             ok = False
         return SourceResult(nodes=nodes, relations=relations, ok=ok, note=note)
 
