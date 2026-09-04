@@ -124,6 +124,7 @@ clean for piping.
 
 - tool **`ground(query)`** — ground a query across federated sources
 - tool **`repos(tag?)`** — list repos with tags/roles
+- tool **`context(task)`** — repos ⋈ their open issues plus grounding (the same composed join the CLI renders)
 - resource **`iris://nodes`** — all federated nodes (read-only enumerable)
 
 Point your MCP-capable agent at the `iris-mcp` command. Example client config:
