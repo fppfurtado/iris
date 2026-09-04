@@ -1,0 +1,22 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: iris
+  description: "Camada de contexto de agente source-agnóstica: federa fontes soberanas heterogêneas sob UM contrato (CLI + MCP), com degradação graciosa e fontes por config — transporte + join cross-fonte, sem substituir o dado within-source de cada fonte."
+  annotations:
+    constelacao.io/cluster: cognitive
+    constelacao.io/camada: bridge
+    constelacao.io/hub: github:fppfurtado/meta-system
+    # arestas-de-saída tipadas — FONTE AUTORITATIVA (JSON-string; lida pelo probe de drift)
+    # edgeType ∈ writes-graph|reads-graph|consumes-cli|cc-plugin|build-dep; schema opcional (writes/reads-graph)
+    # iris consome fontes cognitivas soberanas via CLI (consumes-cli) — essas arestas-de-saída têm ALVO
+    # PRIVADO e são OMITIDAS da superfície pública per private-contracts mode (agent-kit#730). A captura
+    # da aresta vive no overlay do hub (forward private-edge overlay, meta-system#83), não aqui.
+    constelacao.io/private-edges-omitted: true
+    constelacao.io/edges: |
+      []
+spec:
+  type: cli
+  lifecycle: production
+  owner: fppfurtado
+  system: cognitive
