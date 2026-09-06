@@ -3,7 +3,15 @@
 Source-agnostic by construction (Brief C7): the config declares WHICH forge CLI to run and how to map
 its JSON — never an org, host, or instance. Issues are resolved by running the forge CLI with ``cwd``
 set to each repo's local checkout, so the forge coordinates (owner/host/token) live only in the
-checkout's own git remote, never in iris. Each open issue becomes a ``Node(kind="issue")`` plus a
+checkout's own git remote, never in iris.
+
+Scoped by the query, not the registry (iris#36): the fan-out is restricted to the repos the query
+NAMES as ``<repo>#<n>`` — so ``context "mexer em iris#29"`` spawns the forge CLI only in ``iris``, and a
+query naming no repo (a bare ``context``, or the ``repos``/``ground`` reads that carry no task text)
+spawns nothing at all. This keeps the source ergonomic to enable in an active config over a large
+registry, where the old all-repos sweep made every read pay one subprocess per checkout.
+
+Each open issue becomes a ``Node(kind="issue")`` plus a
 ``Relation(<repo-identity>, "has-open-issue", …)`` so the composer can group it under its repo. The
 subprocess runner is injected so normalization is testable without gh/glab installed; a per-repo
 failure (forge absent / unauthenticated / timeout / bad JSON) degrades that repo only — never a raise
@@ -22,7 +30,7 @@ from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_NODES, Query, Source, SourceResult
 from iris.sources._json import dig
-from iris.sources._repos import identity, repo_paths
+from iris.sources._repos import identity, repo_paths, repo_refs
 
 # A runner takes the forge argv and the repo checkout to run it in, and returns stdout.
 Runner = Callable[[list[str], Path], str]
@@ -62,11 +70,20 @@ class TrackerSource:
         self._map: dict[str, str] = dict(opts.get("map", {}))
 
     def read(self, query: Query) -> SourceResult:
+        # Scoped by construction (iris#36): the tracker spawns a forge CLI only for the repos the query
+        # NAMES as `<repo>#<n>`, not the whole registry. A query naming none — a bare `context`, or the
+        # `repos`/`ground` reads that carry no task text — derives zero targets and returns empty with
+        # no fan-out, no forge subprocess. (Config-time overrides like an explicit allowlist grow by
+        # validated need — iris#36 chose query-derived + empty-fallback; no allowlist until one is felt.)
+        wanted = set(repo_refs(query.text))
+        if not wanted:
+            return SourceResult(ok=True)
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
         try:
             repos = repo_paths(mrconfig)
         except OSError as exc:
             return SourceResult(ok=False, note=f"cannot read mrconfig ({exc})")
+        repos = [r for r in repos if identity(r) in wanted]
         nodes: list[Node] = []
         relations: list[Relation] = []
         failed = 0

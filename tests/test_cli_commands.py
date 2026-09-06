@@ -74,7 +74,8 @@ def _config_with_tracker(tmp_path: Path) -> Path:
 
 def test_context_joins_open_issues_under_their_repo(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("IRIS_CONFIG", str(_config_with_tracker(tmp_path)))
-    result = runner.invoke(app, ["context", "some task"])
+    # the task names the repo (iris#36: the tracker scopes its fan-out to the repos the query cites)
+    result = runner.invoke(app, ["context", "some task on meta-system#5"])
     assert result.exit_code == 0
     assert "## repos" in result.output
     assert "meta-system" in result.output
@@ -102,7 +103,8 @@ def test_context_surfaces_unmatched_issue(tmp_path, monkeypatch) -> None:
         encoding="utf-8",
     )
     monkeypatch.setenv("IRIS_CONFIG", str(cfg))
-    result = runner.invoke(app, ["context", "t"])
+    # the task cites ghost, so the tracker spawns there (iris#36); ghost matches no repo node → unmatched
+    result = runner.invoke(app, ["context", "look at ghost#5"])
     assert result.exit_code == 0
     assert "## unmatched issues" in result.output
     assert "ghost#5" in result.output
