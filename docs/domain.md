@@ -26,8 +26,8 @@ frozen value objects and exposes no write path to any source.
 - **Relations:** fan-out over `Source`s; produces a `FederationResult`. Distinct from Composition.
 
 ### Composition
-- **Definition:** deriving a joined, cross-source unit from the federated results (e.g. `repo ⋈ open-issues`)
-  — the value iris adds over calling each source directly.
+- **Definition:** deriving a joined, cross-source unit from the federated results (e.g. `repo ⋈ open-issues`,
+  `repo ⋈ referencing-tasks`) — the value iris adds over calling each source directly.
 - **Relations:** operates on a `FederationResult`; the seam rule (BR01) assigns it to iris, not to any source.
 - **Aliases/Synonyms:** the seam; cross-source join.
 
@@ -63,6 +63,13 @@ frozen value objects and exposes no write path to any source.
 - **Parent:** Node (`kind="issue"`).
 - **Definition:** an open tracker issue from a forge (gh/glab), bound to its repo by a `has-open-issue`
   Relation. Only OPEN issues are modeled.
+
+### Task
+- **Parent:** Node (`kind="task"`).
+- **Definition:** an open task-list item (a GTD/next-action) from a knowledge base, bound to each repo it
+  names by a `has-task` Relation. Repo linkage is not a store field — it is derived from the
+  `<repo>#<number>` references in the task's text (BR06: identity, not a carried key). A task naming no repo
+  carries no relation and stays outside the join. Only OPEN tasks are modeled.
 
 ## Aggregates and Entities
 

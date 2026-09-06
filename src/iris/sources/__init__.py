@@ -5,4 +5,5 @@ Importing this package registers the built-in sources into the default registry.
 
 from iris.sources import cli_json  # noqa: F401  (import for self-registration)
 from iris.sources import constellation  # noqa: F401  (import for self-registration)
+from iris.sources import tasks  # noqa: F401  (import for self-registration)
 from iris.sources import tracker  # noqa: F401  (import for self-registration)

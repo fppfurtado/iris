@@ -49,8 +49,8 @@ def repos(tag: str | None = None) -> list[dict]:
 
 @mcp.tool()
 def context(task: str) -> dict:
-    """Assemble repos ⋈ their open issues plus grounding, off the SAME composer the CLI uses
-    (read-only)."""
+    """Assemble repos ⋈ their open issues AND the tasks that reference them, plus grounding, off the
+    SAME composer the CLI uses (read-only)."""
     config = active_config()
     result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
     composed = compose_repo_issues(result)
@@ -59,10 +59,15 @@ def context(task: str) -> dict:
     )
     return {
         "repos": [
-            {"repo": asdict(rw.repo), "issues": [asdict(i) for i in rw.issues]}
+            {
+                "repo": asdict(rw.repo),
+                "issues": [asdict(i) for i in rw.issues],
+                "tasks": [asdict(t) for t in rw.tasks],
+            }
             for rw in composed.repos
         ],
         "unmatched": [asdict(i) for i in composed.unmatched],
+        "unmatched_tasks": [asdict(t) for t in composed.unmatched_tasks],
         "grounding": [asdict(hit) for hit in result.hits],
         "notes": result.notes + composed.notes,
     }

@@ -74,3 +74,34 @@ def test_mcp_context_returns_same_composed_join_as_cli(tmp_path, monkeypatch) ->
     cli_out = CliRunner().invoke(app, ["context", "some task"]).output
     assert "meta-system#5" in cli_out
     assert "ISSUE-TITLE" in cli_out
+
+
+_FAKE_TASKS = "import json; print(json.dumps([{'id': 'k9', 'text': 'work meta-system#7 soon'}]))"
+
+
+def _tasks_config(tmp_path: Path) -> Path:
+    repo = tmp_path / "meta-system"
+    repo.mkdir()
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(f"[{repo}]\ncheckout = x\n", encoding="utf-8")
+    cfg = tmp_path / "sources.toml"
+    cfg.write_text(
+        f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{mrconfig}"\n\n'
+        f'[sources.gtd]\ntype = "tasks"\ncommand = ["python3", "-c", "{_FAKE_TASKS}"]\n',
+        encoding="utf-8",
+    )
+    return cfg
+
+
+def test_mcp_context_returns_tasks_join_matching_cli(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("IRIS_CONFIG", str(_tasks_config(tmp_path)))
+
+    data = asyncio.run(_call_context("some task"))
+
+    # MCP exposes the repo ⋈ tasks join (arm-a), off the same composer as the CLI
+    tasks = {rw["repo"]["id"]: [t["id"] for t in rw["tasks"]] for rw in data["repos"]}
+    assert tasks == {"meta-system": ["k9"]}
+
+    cli_out = CliRunner().invoke(app, ["context", "some task"]).output
+    assert "task ^k9" in cli_out
+    assert "work meta-system#7 soon" in cli_out
