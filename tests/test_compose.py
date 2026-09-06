@@ -1,5 +1,5 @@
-"""SP-T2 acceptance — compose_repo_issues joins issue nodes under repo nodes by identity, in repo
-order, and surfaces identity-misses under an `unmatched` note."""
+"""SP-T2 + iris#29 arm-a acceptance — compose_repo_issues joins issue AND task nodes under repo nodes
+by identity, in repo order, and surfaces identity-misses (per satellite kind) under `unmatched` notes."""
 
 from __future__ import annotations
 
@@ -18,6 +18,12 @@ def _issue(identity: str, number: int, title: str) -> tuple[Node, Relation]:
         Node(id=node_id, kind="issue", title=title, source="tracker"),
         Relation(from_=identity, type="has-open-issue", to=node_id),
     )
+
+
+def _task(task_id: str, text: str, *identities: str) -> tuple[Node, list[Relation]]:
+    node = Node(id=task_id, kind="task", title=text, source="gtd")
+    rels = [Relation(from_=ident, type="has-task", to=task_id) for ident in identities]
+    return node, rels
 
 
 def test_groups_issues_under_their_repo_in_repo_order():
@@ -57,3 +63,40 @@ def test_identity_miss_surfaced_as_unmatched_not_dropped():
     assert [n.id for n in comp.unmatched] == ["ghost#3"]
     assert comp.notes and "unmatched: 1 open issue" in comp.notes[0]
     assert "ghost" in comp.notes[0]
+
+
+def test_groups_tasks_under_their_repo_alongside_issues():
+    ia1, ra1 = _issue("alpha", 1, "a1")
+    t1, rt1 = _task("aa", "work alpha#1", "alpha")
+    t2, rt2 = _task("bb", "spans alpha#9 and beta#3", "alpha", "beta")
+    result = FederationResult(
+        nodes=[_repo("alpha"), _repo("beta"), ia1, t1, t2],
+        relations=[ra1, *rt1, *rt2],
+    )
+    comp = compose_repo_issues(result)
+
+    assert [n.id for n in comp.repos[0].issues] == ["alpha#1"]
+    # the task lands under alpha (with the issue) AND under beta — one task, two repos
+    assert [n.id for n in comp.repos[0].tasks] == ["aa", "bb"]
+    assert [n.id for n in comp.repos[1].tasks] == ["bb"]
+    assert comp.unmatched_tasks == []
+
+
+def test_task_with_no_repo_reference_appears_nowhere():
+    # a task carrying no `has-task` relation is outside the join entirely — not under a repo, not unmatched
+    t, _ = _task("lone", "clean /storage, no repo")  # no identities → no relations
+    result = FederationResult(nodes=[_repo("alpha"), t], relations=[])
+    comp = compose_repo_issues(result)
+    assert comp.repos[0].tasks == []
+    assert comp.unmatched_tasks == []
+
+
+def test_task_referencing_unknown_repo_surfaces_as_unmatched():
+    t, rt = _task("gh", "chase ghost#4", "ghost")  # no `ghost` repo node
+    result = FederationResult(nodes=[_repo("alpha"), t], relations=rt)
+    comp = compose_repo_issues(result)
+
+    assert comp.repos[0].tasks == []
+    assert [n.id for n in comp.unmatched_tasks] == ["gh"]
+    note = next(n for n in comp.notes if "outside the constellation" in n)
+    assert "ghost" in note

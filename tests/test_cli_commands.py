@@ -106,3 +106,34 @@ def test_context_surfaces_unmatched_issue(tmp_path, monkeypatch) -> None:
     assert result.exit_code == 0
     assert "## unmatched issues" in result.output
     assert "ghost#5" in result.output
+
+
+_FAKE_TASKS = (
+    "import json; print(json.dumps([{'id':'aa1','text':'do meta-system#9 now'},"
+    "{'id':'bb2','text':'unrelated storage cleanup'}]))"
+)
+
+
+def _config_with_tasks(tmp_path: Path) -> Path:
+    repo = tmp_path / "meta-system"
+    repo.mkdir()
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(f"[{repo}]\ncheckout = x\n", encoding="utf-8")
+    cfg = tmp_path / "sources.toml"
+    cfg.write_text(
+        f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{mrconfig}"\n\n'
+        f'[sources.gtd]\ntype = "tasks"\ncommand = ["python3", "-c", "{_FAKE_TASKS}"]\n',
+        encoding="utf-8",
+    )
+    return cfg
+
+
+def test_context_joins_referencing_tasks_under_their_repo(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("IRIS_CONFIG", str(_config_with_tasks(tmp_path)))
+    result = runner.invoke(app, ["context", "some task"])
+    assert result.exit_code == 0
+    # the task that names meta-system#9 is rendered under meta-system (the cross-source join)
+    assert "task ^aa1" in result.output
+    assert "do meta-system#9 now" in result.output
+    # the task naming no repo is outside the join — not rendered
+    assert "bb2" not in result.output

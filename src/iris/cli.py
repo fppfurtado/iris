@@ -32,6 +32,12 @@ def _emit_notes(result: FederationResult) -> None:
         typer.echo(f"# {note}", err=True)
 
 
+def _oneline(text: str, width: int = 100) -> str:
+    """First line of a task's text, capped — GTD items carry a full paragraph as their title."""
+    head = text.strip().splitlines()[0] if text.strip() else ""
+    return head if len(head) <= width else head[: width - 1] + "…"
+
+
 @app.command()
 def repos(tag: str = typer.Option(None, "--tag", help="Filter repos by tag.")) -> None:
     """List repos with their tags/roles, optionally filtered by tag (read-only)."""
@@ -69,8 +75,8 @@ def ground(query: str = typer.Argument(..., help="The query to ground.")) -> Non
 def context(task: str = typer.Argument(..., help="The task to assemble context for.")) -> None:
     """Assemble the integral context relevant to a task (read-only).
 
-    Synthesizes repos ⋈ their open issues (the cross-source join) plus grounding on the task's
-    terms, in one pass.
+    Synthesizes repos ⋈ their open issues AND the standing tasks that reference them (the cross-source
+    joins) plus grounding on the task's terms, in one pass.
     """
     config = _load_config()
     result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
@@ -81,11 +87,17 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
             tags = f"  [{', '.join(rw.repo.tags)}]" if rw.repo.tags else ""
             typer.echo(f"{rw.repo.id}{tags}")
             for issue in rw.issues:
-                typer.echo(f"  - {issue.id}  {issue.title}")
+                typer.echo(f"  - issue {issue.id}  {issue.title}")
+            for gtd in rw.tasks:
+                typer.echo(f"  - task ^{gtd.id}  {_oneline(gtd.title)}")
     if composed.unmatched:
         typer.echo("## unmatched issues")
         for issue in composed.unmatched:
             typer.echo(f"  - {issue.id}  {issue.title}")
+    if composed.unmatched_tasks:
+        typer.echo("## tasks referencing repos outside the constellation")
+        for gtd in composed.unmatched_tasks:
+            typer.echo(f"  - ^{gtd.id}  {_oneline(gtd.title)}")
     if result.hits:
         typer.echo("## grounding")
         for hit in result.hits:

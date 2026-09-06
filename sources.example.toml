@@ -37,3 +37,16 @@ command = ["gh", "issue", "list", "--state", "open", "--json", "number,title"]  
 [sources.tracker.map]
 number = "number"                                      # issue number field (glab: "iid")
 title = "title"                                        # issue title field
+
+# A `tasks` source: open task-list items (a GTD/next-action list) from a knowledge base, joined to the
+# repo registry by the `<repo>#<number>` references written in each task's text — so `context` shows,
+# under one repo, both its open issues AND the standing tasks about it. Source-agnostic: you name the
+# CLI and the field map, never a store. The command lists the WHOLE open queue in ONE invocation (no
+# {query}); repo linkage is extracted from the mapped text, not a field the store carries.
+[sources.tasks]
+type = "tasks"
+command = ["tasks", "list", "--open", "--json"]        # any CLI that emits a JSON task list
+# items = ""                                            # dotted path to the list ("" = the top-level array)
+[sources.tasks.map]
+id = "id"                                              # stable task id (keys the node)
+title = "text"                                         # the task body (scanned for <repo>#<n> refs)

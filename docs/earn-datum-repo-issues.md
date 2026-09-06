@@ -36,6 +36,28 @@ hand-join collapse to **one** call.
 sequence returns, hand-joined by identity. Composition equals the manual join — so the one call loses
 nothing the N calls would surface.
 
+## Companion datum — `repo ⋈ referencing-tasks` (iris#29 arm-a)
+
+The same earn shape, a **third** federated source: a `tasks` source brings the open GTD/next-action list
+from a knowledge base, and `context` files each task under the repo(s) it names by `<repo>#<number>` in
+its text. This is a genuine cross-source join (tasks live in the KB, repos in the registry — **no single
+source does it**), and it recurs every session-open (the "what should I work on here?" hand-cross), so it
+is an *established-cause* earn candidate, not an n=1 (epistemics Route A).
+
+**The manual sequence today:** read `mneme task list --json` (or any task CLI), then scan every task's
+text for `<repo>#<n>` references and file it under that repo BY HAND — exactly the cross a session does to
+notice "which standing tasks land on this repo, and does any land here at all?".
+
+**The one composed call:** `iris context "<task>"` returns, under each repo, its open issues **and** the
+tasks referencing it, in one pass.
+
+`tests/test_earn_datum.py::test_composed_gtd_join_equals_manual_hand_cross` proves the equivalence
+deterministically: the composed `repo ⋈ tasks` equals the hand-cross, a task naming two repos lands under
+both, and a task naming none stays outside the join (no noise). A task referencing a repo not in the
+registry surfaces under `## tasks referencing repos outside the constellation` (F6 identity-miss, honest —
+never swallowed), distinct in wording from the issue miss because a task naming an un-checked-out repo is
+not a registry inconsistency, just a pointer to a repo you don't track locally.
+
 ## What is still the operator's call (not decided here)
 
 - **Does 1 call beating N calls clear the publish/hold bar?** That is the `^dogfd1` earn-or-retire verdict
