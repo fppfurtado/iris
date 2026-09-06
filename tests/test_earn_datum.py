@@ -48,21 +48,26 @@ def _config(tmp_path: Path, *, with_tasks: bool = False) -> Path:
 def test_composed_call_equals_manual_direct_call_join(tmp_path):
     config = load_config(_config(tmp_path))
 
+    # The task the session is assembling context for — names both repos, so both are in scope
+    # (iris#36: the tracker fans out only to the repos the query cites).
+    task = "reconcile alpha#5 against beta#5"
+
     # ONE composed iris call.
     composed = compose_repo_issues(
-        federate(config, Query(kinds=frozenset({KIND_NODES, KIND_HITS})))
+        federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
     )
     composed_map = {rw.repo.id: sorted(i.id for i in rw.issues) for rw in composed.repos}
 
     # N direct calls, hand-joined: constellation's repos + the tracker's issues per identity —
-    # exactly what a session does by hand today (`iris repos` + `gh issue list` per repo).
+    # exactly what a session does by hand today (`iris repos` + `gh issue list` per cited repo). The
+    # manual baseline reads the tracker under the SAME scoping query, so the equality stays honest.
     sources = {s.name: s for s in DEFAULT.resolve(config)}
     repos = [
         n.id
         for n in sources["constellation"].read(Query(kinds=frozenset({KIND_NODES}))).nodes
         if n.kind == "repo"
     ]
-    tracker = sources["tracker"].read(Query(kinds=frozenset({KIND_NODES})))
+    tracker = sources["tracker"].read(Query(text=task, kinds=frozenset({KIND_NODES})))
     manual: dict[str, list[str]] = {r: [] for r in repos}
     for rel in tracker.relations:
         if rel.type == "has-open-issue" and rel.from_ in manual:

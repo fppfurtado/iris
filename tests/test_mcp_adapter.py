@@ -64,14 +64,15 @@ def _tracker_config(tmp_path: Path) -> Path:
 def test_mcp_context_returns_same_composed_join_as_cli(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("IRIS_CONFIG", str(_tracker_config(tmp_path)))
 
-    data = asyncio.run(_call_context("some task"))
+    # the task cites the repo, so the tracker scopes its fan-out to it (iris#36)
+    data = asyncio.run(_call_context("some task on meta-system#5"))
 
     # MCP returns the composed repo ⋈ open-issues, off the same composer
     repos = {rw["repo"]["id"]: [i["id"] for i in rw["issues"]] for rw in data["repos"]}
     assert repos == {"meta-system": ["meta-system#5"]}
 
     # …and it is the SAME join the CLI renders for the same config
-    cli_out = CliRunner().invoke(app, ["context", "some task"]).output
+    cli_out = CliRunner().invoke(app, ["context", "some task on meta-system#5"]).output
     assert "meta-system#5" in cli_out
     assert "ISSUE-TITLE" in cli_out
 

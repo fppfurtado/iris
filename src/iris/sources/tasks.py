@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 from typing import Callable
 
@@ -29,19 +28,11 @@ from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_NODES, Query, Source, SourceResult
 from iris.sources._json import dig
+from iris.sources._repos import repo_refs
 
 Runner = Callable[[list[str]], str]
 
 _DEFAULT_TIMEOUT = 30.0
-
-# A ``<repo>#<number>`` reference inside a task's text — the join carrier. The slug must sit
-# immediately before ``#`` (so a spaced "PR #32" or a bare "## heading" never matches) and be a
-# repo-name-like token: LOWERCASE-led, matching the checkout-basename convention every repo identity
-# follows (iris, agent-kit, pje-2.1). That lowercase anchor drops the uppercase-acronym noise
-# ("PR#25", "P1#3", "GLPI#7") that a bare letter-start would sweep in — those are prose, not repos.
-# Whether a surviving slug is a REAL repo is the composer's call, not ours: we surface the candidate,
-# it resolves the identity (BR06).
-_REPO_REF = re.compile(r"(?<![A-Za-z0-9_#])([a-z][a-z0-9._-]*)#\d+")
 
 
 def _make_default_runner(timeout: float) -> Runner:
@@ -96,8 +87,8 @@ class TasksSource:
             text = str(dig(item, self._map.get("title", "text")) or "")
             nodes.append(Node(id=node_id, kind="task", title=text, source=self.name))
             # One relation per DISTINCT repo referenced — a task naming iris#29 and iris#31 lands under
-            # iris once, not twice; a task naming two repos lands under both.
-            for slug in dict.fromkeys(m.group(1) for m in _REPO_REF.finditer(text)):
+            # iris once, not twice; a task naming two repos lands under both (repo_refs dedups).
+            for slug in repo_refs(text):
                 relations.append(Relation(from_=slug, type="has-task", to=node_id))
         return SourceResult(nodes=nodes, relations=relations, ok=True)
 

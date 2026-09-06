@@ -15,6 +15,25 @@ from pathlib import Path
 _SECTION = re.compile(r"(?m)^\[(?P<name>[^\]]+)\]\s*$")
 _NON_REPO_SECTIONS = {"DEFAULT", "ALIAS"}
 
+# A ``<repo>#<number>`` reference inside free text — the cross-source join carrier AND the query-scoping
+# key. The slug must sit immediately before ``#`` (so a spaced "PR #32" or a bare "## heading" never
+# matches) and be a repo-name-like token: LOWERCASE-led, matching the checkout-basename identity
+# convention every repo follows (iris, agent-kit, pje-2.1). That lowercase anchor drops the
+# uppercase-acronym noise ("PR#25", "P1#3", "GLPI#7") a bare letter-start would sweep in — those are
+# prose, not repos. Whether a surviving slug is a REAL repo is the caller's resolution, not this
+# extraction's (the composer resolves identity for tasks; the tracker matches it against the registry).
+_REPO_REF = re.compile(r"(?<![A-Za-z0-9_#])([a-z][a-z0-9._-]*)#\d+")
+
+
+def repo_refs(text: str) -> list[str]:
+    """The distinct ``<repo>`` slugs referenced as ``<repo>#<number>`` in ``text``, first-seen order.
+
+    Shared by the tasks source (keying a task to the repos it names) and the tracker source (scoping
+    the forge fan-out to the repos a query names — iris#36), so both derive the join/scope key by the
+    SAME rule rather than two coincidentally-aligned regexes (Brief F6: identity is derived, not luck).
+    """
+    return list(dict.fromkeys(m.group(1) for m in _REPO_REF.finditer(text)))
+
 
 def repo_paths(mrconfig: Path) -> list[Path]:
     """Parse ``mrconfig`` section headers into absolute repo paths."""
