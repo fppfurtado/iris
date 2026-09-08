@@ -44,14 +44,16 @@ def test_ground_renders_hits(tmp_path, monkeypatch) -> None:
     assert "E" in result.output
 
 
-def test_context_composes_repos_and_grounding(tmp_path, monkeypatch) -> None:
+def test_context_suppresses_join_less_repos_renders_grounding(tmp_path, monkeypatch) -> None:
+    # iris#38: a query naming no repo and matching no satellite must NOT dump the full roster —
+    # only grounding (+ any unmatched) renders. A join-less repo is noise, not integral context.
+    # The positive repos-compose path is covered by test_context_joins_open_issues_under_their_repo.
     monkeypatch.setenv("IRIS_CONFIG", str(_config(tmp_path)))
     result = runner.invoke(app, ["context", "some task"])
     assert result.exit_code == 0
-    assert "## repos" in result.output
-    assert "meta-system" in result.output
     assert "## grounding" in result.output
     assert "r1" in result.output
+    assert "meta-system" not in result.output  # empty repo suppressed, not roster-dumped
 
 
 _FAKE_ISSUES = "import json; print(json.dumps([{'number': 5, 'title': 'ISSUE-TITLE'}]))"
