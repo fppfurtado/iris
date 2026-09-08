@@ -141,3 +141,40 @@ def test_context_joins_referencing_tasks_under_their_repo(tmp_path, monkeypatch)
     assert "do meta-system#9 now" in result.output
     # the task naming no repo is outside the join — not rendered
     assert "bb2" not in result.output
+
+
+_FAKE_MULTI_REPO_TASK = (
+    "import json; print(json.dumps([{'id':'t1','text':'flip alpha#6 and touch beta#7'}]))"
+)
+
+
+def _config_with_two_repos_and_task(tmp_path: Path) -> Path:
+    for name in ("alpha", "beta"):
+        (tmp_path / name).mkdir()
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(
+        f"[{tmp_path / 'alpha'}]\ncheckout = x\n[{tmp_path / 'beta'}]\ncheckout = x\n",
+        encoding="utf-8",
+    )
+    cfg = tmp_path / "sources.toml"
+    cfg.write_text(
+        f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{mrconfig}"\n\n'
+        f'[sources.gtd]\ntype = "tasks"\ncommand = ["python3", "-c", "{_FAKE_MULTI_REPO_TASK}"]\n',
+        encoding="utf-8",
+    )
+    return cfg
+
+
+def test_context_does_not_scatter_a_multi_repo_task_under_unqueried_repos(tmp_path, monkeypatch) -> None:
+    # iris#38 arm-2: a task naming alpha#6 AND beta#7 emits a has-task edge to BOTH. A query naming
+    # only alpha must render that task under alpha, NOT drag beta in purely as task scatter — beta
+    # is not query-named and has no issues of its own.
+    monkeypatch.setenv("IRIS_CONFIG", str(_config_with_two_repos_and_task(tmp_path)))
+    result = runner.invoke(app, ["context", "work on alpha#6"])
+    assert result.exit_code == 0
+    assert "task ^t1" in result.output  # the task renders (under its queried repo)
+    # a repo header is a bare id on its own line; beta must not appear as one (it is suppressed),
+    # even though "beta#7" still shows inside the shared task's text line under alpha.
+    header_lines = result.output.splitlines()
+    assert "alpha" in header_lines
+    assert "beta" not in header_lines

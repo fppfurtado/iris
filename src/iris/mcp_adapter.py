@@ -13,6 +13,7 @@ from dataclasses import asdict
 from fastmcp import FastMCP
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
+from iris._present import relevant_repos
 from iris.config import Config, active_config
 from iris.core.compose import compose_repo_issues
 from iris.core.federation import federate
@@ -58,15 +59,15 @@ def context(task: str) -> dict:
         "context", task, hits=len(result.hits), nodes=len(composed.repos), sources=_source_names(config)
     )
     return {
-        # Relevance-scope: drop join-less repos (roster noise) — parity with the CLI (iris#38).
+        # Relevance-scope: drop join-less repos + multi-repo task scatter — shared with the CLI for
+        # parity (iris#38).
         "repos": [
             {
                 "repo": asdict(rw.repo),
                 "issues": [asdict(i) for i in rw.issues],
                 "tasks": [asdict(t) for t in rw.tasks],
             }
-            for rw in composed.repos
-            if rw.issues or rw.tasks
+            for rw in relevant_repos(composed, task)
         ],
         "unmatched": [asdict(i) for i in composed.unmatched],
         "unmatched_tasks": [asdict(t) for t in composed.unmatched_tasks],
