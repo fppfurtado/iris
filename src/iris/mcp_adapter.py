@@ -58,6 +58,7 @@ def context(task: str) -> dict:
         "context", task, hits=len(result.hits), nodes=len(composed.repos), sources=_source_names(config)
     )
     return {
+        # Relevance-scope: drop join-less repos (roster noise) — parity with the CLI (iris#38).
         "repos": [
             {
                 "repo": asdict(rw.repo),
@@ -65,6 +66,7 @@ def context(task: str) -> dict:
                 "tasks": [asdict(t) for t in rw.tasks],
             }
             for rw in composed.repos
+            if rw.issues or rw.tasks
         ],
         "unmatched": [asdict(i) for i in composed.unmatched],
         "unmatched_tasks": [asdict(t) for t in composed.unmatched_tasks],

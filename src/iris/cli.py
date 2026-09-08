@@ -81,9 +81,13 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
     config = _load_config()
     result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
     composed = compose_repo_issues(result)
-    if composed.repos:
+    # Relevance-scope the display: only repos that actually participate in a join for this task
+    # (≥1 open issue or referencing task) — a join-less repo is roster noise, not integral context
+    # (iris#38). The composer keeps the full roster; scoping is a presentation concern.
+    relevant = [rw for rw in composed.repos if rw.issues or rw.tasks]
+    if relevant:
         typer.echo("## repos")
-        for rw in composed.repos:
+        for rw in relevant:
             tags = f"  [{', '.join(rw.repo.tags)}]" if rw.repo.tags else ""
             typer.echo(f"{rw.repo.id}{tags}")
             for issue in rw.issues:
