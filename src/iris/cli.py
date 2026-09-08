@@ -6,6 +6,7 @@ import typer
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
+from iris._present import relevant_repos
 from iris.core.compose import compose_repo_issues
 from iris.core.federation import FederationResult, federate
 from iris.core.source import KIND_HITS, KIND_NODES, Query
@@ -81,10 +82,10 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
     config = _load_config()
     result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
     composed = compose_repo_issues(result)
-    # Relevance-scope the display: only repos that actually participate in a join for this task
-    # (≥1 open issue or referencing task) — a join-less repo is roster noise, not integral context
-    # (iris#38). The composer keeps the full roster; scoping is a presentation concern.
-    relevant = [rw for rw in composed.repos if rw.issues or rw.tasks]
+    # Relevance-scope the display to the repos that actually participate in a join for this task —
+    # dropping join-less repos and multi-repo task scatter (iris#38). The composer keeps the full
+    # roster; scoping is a presentation concern, shared with the MCP adapter for parity.
+    relevant = relevant_repos(composed, task)
     if relevant:
         typer.echo("## repos")
         for rw in relevant:
