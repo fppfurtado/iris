@@ -20,14 +20,25 @@ from pathlib import Path
 _ENV_VAR = "IRIS_REQUEST_LOG"
 
 
-def log_request(op: str, query: str, hits: int, nodes: int, sources: list[str]) -> None:
+def log_request(
+    op: str,
+    query: str,
+    hits: int,
+    nodes: int,
+    sources: list[str],
+    extra: dict | None = None,
+) -> None:
     """Append one JSON line describing a request to ``$IRIS_REQUEST_LOG``, if set.
 
     When ``IRIS_REQUEST_LOG`` is unset this is a complete no-op — no file is created and
     nothing is written, so the shipped default stays read-only by construction. When it is
     set to a path, one line ``{"ts", "op", "query", "hits", "nodes", "sources"}`` is
-    appended (parent dirs created if missing). Never raises: any failure to log is swallowed
-    so telemetry can never break a read.
+    appended (parent dirs created if missing). ``extra`` merges op-specific fields into that
+    record — e.g. ``context`` records the identity-miss counts (``unmatched_issues`` /
+    ``unmatched_tasks``, the Brief F6 signal) so the deferred F6 protocol's arming trigger
+    ("fires on the first real identity-miss") is durably auditable rather than scrolling by
+    on ephemeral stderr; ops that pass no ``extra`` keep their record shape unchanged. Never
+    raises: any failure to log is swallowed so telemetry can never break a read.
     """
     path = os.environ.get(_ENV_VAR)
     if not path:
@@ -41,6 +52,8 @@ def log_request(op: str, query: str, hits: int, nodes: int, sources: list[str]) 
             "nodes": nodes,
             "sources": sources,
         }
+        if extra:
+            record.update(extra)
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("a", encoding="utf-8") as fh:

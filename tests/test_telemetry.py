@@ -35,3 +35,21 @@ def test_log_request_is_noop_when_unset(tmp_path: Path, monkeypatch) -> None:
     log_request("ground", "q", hits=1, nodes=0, sources=[])
 
     assert not would_be.exists()  # complete no-op: no file created
+
+
+def test_log_request_merges_extra_identity_miss_counts(tmp_path: Path, monkeypatch) -> None:
+    # `context` records the Brief F6 identity-miss counts via `extra`, so the deferred protocol's
+    # arming trigger is durably auditable; an op that passes no `extra` keeps its record shape.
+    log_path = tmp_path / "requests.jsonl"
+    monkeypatch.setenv("IRIS_REQUEST_LOG", str(log_path))
+
+    log_request(
+        "context", "t", hits=1, nodes=3, sources=["tracker"],
+        extra={"unmatched_issues": 2, "unmatched_tasks": 0},
+    )
+    log_request("ground", "q", hits=1, nodes=0, sources=[])  # no extra
+
+    ctx, grd = (json.loads(ln) for ln in log_path.read_text(encoding="utf-8").splitlines())
+    assert ctx["unmatched_issues"] == 2
+    assert ctx["unmatched_tasks"] == 0
+    assert "unmatched_issues" not in grd  # extra-less ops keep their shape (no key leakage)
