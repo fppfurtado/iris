@@ -113,7 +113,16 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
     for note in composed.notes:
         typer.echo(f"# {note}", err=True)
     log_request(
-        "context", task, hits=len(result.hits), nodes=len(composed.repos), sources=_source_names(config)
+        "context",
+        task,
+        hits=len(result.hits),
+        nodes=len(composed.repos),
+        sources=_source_names(config),
+        # Identity-miss counts (Brief F6): durably record the deferred protocol's arming signal.
+        extra={
+            "unmatched_issues": len(composed.unmatched),
+            "unmatched_tasks": len(composed.unmatched_tasks),
+        },
     )
 
 

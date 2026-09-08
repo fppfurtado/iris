@@ -56,7 +56,16 @@ def context(task: str) -> dict:
     result = federate(config, Query(text=task, kinds=frozenset({KIND_NODES, KIND_HITS})))
     composed = compose_repo_issues(result)
     log_request(
-        "context", task, hits=len(result.hits), nodes=len(composed.repos), sources=_source_names(config)
+        "context",
+        task,
+        hits=len(result.hits),
+        nodes=len(composed.repos),
+        sources=_source_names(config),
+        # Identity-miss counts (Brief F6): parity with the CLI — the F6 arming signal, durable.
+        extra={
+            "unmatched_issues": len(composed.unmatched),
+            "unmatched_tasks": len(composed.unmatched_tasks),
+        },
     )
     return {
         # Relevance-scope: drop join-less repos + multi-repo task scatter — shared with the CLI for
