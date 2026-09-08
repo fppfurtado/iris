@@ -1,0 +1,411 @@
+{
+  "exported_at": "2026-09-08T15:03:38.921966+00:00",
+  "repo": "/storage/dev/projects/iris",
+  "tool": "gh",
+  "item_count": 19,
+  "items": [
+    {
+      "ref": "38",
+      "title": "iris context: relevance-scope da composição — dropar repos sem-join + apertar atribuição de task + deep-read de item",
+      "body": "## Achado (dogfood contrafactual 2026-09-08, ver #29)\n\n`iris context <task>` compõe repo⋈issues⋈tasks mas emite o **roster inteiro** de repos incondicionalmente (`core/compose.py` — `for repo in repo_nodes`), afogando o(s) repo(s) relevante(s) num dump de ~30 repos. Só **issues** (scoped por #36 aos repos que a query nomeia) e **grounding** (hits) respondem à task; roster e atribuição de task não são relevance-gated. Contra o bar S2 ('integral RELEVANTE num tiro'), servabilidade medida = **PARCIAL** (replay: 0 SERVED limpo / 3 parcial / 1 borderline).\n\n## Escopo (3 partes, ordem de valor)\n1. **[quick, alto valor] Dropar repos sem-join** — emitir só repos com ≥1 issue OU ≥1 task casada (os que participam do join nesta query). Empty-repos = roster-noise → colapsa 30→1-3. NÃO afeta `iris repos` (comando separado). Semanticamente correto pra um JOIN (repo sem satélite não está em join nenhum).\n2. **Apertar atribuição de task** — task que referencia N repos aparece sob todos (`^fl1p26` espalha). Ranquear/limitar ou priorizar o repo nomeado pela query.\n3. **Deep-read de item único** — thread de UMA issue (comentários + PRs linkados) não é composto (miss logado 09-06, expedidor#310). Maior/separado; pode ser sub-item ou faceta própria.\n\n## Guarda\nParte 1 é o fix mínimo que torna o output usável (patch pronto p/ revisão). Rodar a suíte (há testes de compose). Este é o **earn-blocker de servabilidade** que o contrafactual expôs — distinto do data-gap de identidade (#12). Relaciona #29 (evidência de validated-need), `^dogfd1` (decisão publish/hold).",
+      "state": "open",
+      "labels": [
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/38",
+      "created_at": "2026-09-08T14:38:15Z",
+      "updated_at": "2026-09-08T14:38:15Z",
+      "closed_at": null,
+      "comments": []
+    },
+    {
+      "ref": "36",
+      "title": "tracker: parametrizar quais repos têm issues carregadas (escopo — hoje é fan-out sobre todo o registry)",
+      "body": "## Contexto\n\nO `tracker` (source de issues, #31) deriva seu conjunto de repos do `.mrconfig` **inteiro** (`repo_paths(mrconfig)` → todos os ~28 checkouts), sem nenhuma costura de escopo. Foi consciente no Spec do #31 — o earn-datum determinístico exigia composto == baseline manual sobre *todos* os repos — mas o efeito é um tracker **não-ergonômico pra produção**: all-or-nothing.\n\nCusto concreto no ecossistema atual (20 github + 8 gitlab-tjpa): ligar `[sources.tracker]` com `gh` faz **1 spawn `gh` por repo (~28)** a cada `iris context` **E** a cada `iris repos` (o kind-system grosso não filtra — ambos pedem `NODES`), com os 8 tjpa degradando por-repo (ruído). Isso torna dois comandos frequentes lentos e é o que hoje **barra ligar o tracker no config ativo** de forma sã.\n\n## Eixos de parametrização\n\n**Query-time (alinhado à semântica de `context`):**\n- **(c) `context` puxa issues só dos repos relevantes à task** — `context` é por definição task-scoped; fan-out sobre 28 repos contradiz isso. Auto-derivar os repos-alvo da **mesma extração `<repo>#<n>`** que o `tasks` source (arm-a, #29) já faz do texto → `context \"mexer em iris#29\"` só spawna `gh` no `iris`. Cheap + relevante + mixed-forge vira raro (só bate no forge do repo citado). Fallback quando a task não cita repo: nenhum issue (barato) — a decidir.\n\n**Config-time (política permanente):**\n- **(a) por tag/role** — reusa as tags que a constellation já lê do `catalog-info.yaml` (e o `iris repos --tag` já filtra). Ex.: `tags = [\"forge:github\"]`. Resolve mixed-forge; depende de cobertura de catálogo (12/28 sem hoje).\n- **(b) allowlist explícita** — `repos = [\"iris\", \"agent-kit\", …]` no source. Trivial, zero dependência de catálogo, manual/estático.\n- **(d) instâncias por-forge** — `[sources.tracker-gh]` + `[sources.tracker-glab]`, cada uma com CLI e subconjunto próprios; compõe com (a)/(b) e é o destino natural pra cobrir tjpa.\n\n## Recomendação\n\n**(c) auto-derivado** como caminho principal (custo + relevância + mixed-forge resolvidos com o mecanismo que o arm-a já introduziu), com **(b)** como override manual barato pra forçar um repo não-citado. **(d)** fica pro dia em que cobrir tjpa (glab) virar necessidade validada.\n\n## Disposição\n\nFollow-up de #31 (fechado via PR #32). **Não bloqueia** arm-a/`tasks` (#29, já live — `tasks` faz 1 chamada, não fan-out). **Bloqueia** ligar o `tracker` no config ativo de forma ergonômica → o `tracker` fica DEFERIDO até este escopo existir.",
+      "state": "closed",
+      "labels": [
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/36",
+      "created_at": "2026-09-06T10:38:24Z",
+      "updated_at": "2026-09-06T21:41:56Z",
+      "closed_at": "2026-09-06T21:41:56Z",
+      "comments": []
+    },
+    {
+      "ref": "34",
+      "title": "Frame: database como fonte (C6/C7 alcance+de-risco de fonte sensível) — F5 fired-on-evidence",
+      "body": "## Frame: `database` como fonte (eixo C6/C7 — alcance + de-risco de fonte sensível)\n\n**Origem:** F5 do Brief `costura-iris-fonte.BRIEF.md` (FROZEN 2026-09-04, home: working-state/programs/contexto-digital-integral/). Candidato de fonte tipo-banco dirigido pelo caso concreto **pje-2.1**. O Brief o deferiu com frame próprio ARMADO; este issue registra o **trigger firing-on-evidence** e é o home do build per o próprio Brief (\"builds de fonte nova → iris#11\").\n\n### Eixo correto (importante — não confundir com o `^dogfd1`)\nEste candidato **NÃO é play de composição** e **não move o `^dogfd1`**: o BD do pje não compartilha chave de identidade derivada com repo/constellation/knowledge → zero join cross-fonte (passthrough no eixo composição, igual gnucash/#12/repo⋈journal).\n\nSeu valor é o eixo **C6/C7** — alcance uniforme + de-risco de fonte **sensível**: um adaptador `sql`/`database` source-agnostic/público + a instância (pje-2.1) só na config privada (C7), creds fora do repo, um contrato de acesso soberano em vez de `psql`+`.pgpass` espalhado. Para fonte sensível, o re-expose **não** é o \"sinal fraco/passthrough\" do #29 (esse vale pra fonte não-sensível já alcançável direto) — a interface uniforme+soberana É valor real sem composição, o que o C6 (transporte = valor de 1ª classe) ratificou.\n\n### Necessidade EVIDENCIADA (o que disparou o trigger)\nSessões recorrentes de **query operacional sobre o BD institucional** (catch do operador 2026-09-04):\n- **scripts-judiciais** — cirurgia `.sql` crua no BD judicial (`issue_169_ajustar_pj_como_pf.sql`, queries de divergência das varas de violência doméstica).\n- **connector-pje-mandamus-tjpa**.\n- **pje-2.1**.\n\nIsso descarrega **job + escopo**. Falta a substância pesada: **desenho da garantia read-only** sobre BD sob sigilo (governança) — que quer o **caso concreto na mão + VPN TJPA**, não desenho no vácuo.\n\n### Escopo do frame (quando disparar)\n- Job/escopo: query operacional read-only (distinto do work-corpus curado tjpa, que já mora no mneme).\n- **Garantia read-only** sobre BD sob sigilo (parte load-bearing).\n- Adaptador C7: `sql`/`database` genérico público; instância pje-2.1 só na config privada.\n- Convergência lateral: gnucash=SQLite também cairia neste adaptador, mas por passthrough (não é o driver — o driver é o de-risco da fonte sensível).\n\n### Relações\n- Refina o braço **tjpa** de #11 (F5 \"refina o braço tjpa do iris#11\").\n- Mesmo firing-locus do GTD `^z0946e` (re-vendor scripts-judiciais): sessão scripts-judiciais/connector + VPN TJPA.\n- Não gateia nem é gateado pelo `^dogfd1` (eixo diferente).\n\nTrigger-source: uma sessão TJPA-VPN em scripts-judiciais / connector-pje-mandamus-tjpa / pje-2.1 com o caso de query operacional vivo — o desenho de escopo + garantia read-only precisa do BD real presente. Fires quando tal sessão estiver ativa (job+escopo já evidenciados; falta a garantia read-only com o caso na mão).\n\nRelated: #11 — refina o braço operacional/tjpa de",
+      "state": "open",
+      "labels": [],
+      "url": "https://github.com/fppfurtado/iris/issues/34",
+      "created_at": "2026-09-04T20:07:10Z",
+      "updated_at": "2026-09-04T20:33:51Z",
+      "closed_at": null,
+      "comments": []
+    },
+    {
+      "ref": "31",
+      "title": "Source gh/glab (tracker) ⋈ constellation → repo ⋈ issues-abertas (o earn-path do ^dogfd1)",
+      "body": "Candidato de 2ª fonte identificado como o **earn-path mais forte** do iris no frame da costura camada⋈fonte (Brief `costura-iris-fonte.BRIEF.md`, FROZEN 2026-09-04, no programa contexto-digital-integral).\n\n## Job\nAdicionar um source `gh`/`glab` (tracker via CLI, JSON) e federá-lo com o registro de repos (`constellation`) pra retornar **repo ⋈ issues-abertas** como unidade composta keyed na identidade do repo.\n\n## Por que é o earn-path (e não outro)\n- É o **primeiro join cross-fonte NÃO-redundante com chamada direta**: constellation sabe o repo, gh/glab sabe as issues; hoje o agente junta à mão (`iris repos`/mr + `gh issue list` por repo). Nenhuma fonte faz sozinha.\n- Contrasta com o bridge do iris#12 (repo⋈journal), que foi haltado por ser **redundante** com `mneme backlinks` (1 call). repo⋈issues não tem esse problema.\n- É a evidência que permitiria decidir o **^dogfd1 (publish/hold) por earn** em vez de HOLD-por-default: a 1 chamada `iris context <repo>` substituindo N diretas = o S6 finalmente validável (>1 fonte).\n\n## Regra de costura aplicável (Brief R1/C6 + C7)\n- iris = transporte + composição CROSS-fonte; a resolução/ordenação das issues fica no gh/glab (within-source). iris federa e compõe, não re-implementa.\n- **C7 (invariante):** o adaptador `gh`/`glab` é source-agnostic/PÚBLICO (não nomeia org/host); as orgs/hosts/tokens (incl. o GitLab institucional TJPA via glab) vivem só na config privada `sources.toml`.\n- Soberania: o forge é front substituível sobre dado que você possui (o export `backlog-snapshots` é o registro soberano; a leitura via CLI é a interface viva, read/awareness — C5).\n\n## Prior-art no ecossistema\n`backlog/tracker.py` (suite backlog) já lê gh/glab em JSON por repo — referência de adaptador.\n\n## Rota\n`frame`/`software-track` no repo iris quando priorizado. Prior-art scan: reusar o padrão `cli_json` (o source do mneme) — gh/glab é outro CLI-JSON.\n\nRelated: #11 (facetas futuras — este é a faceta TRACKER, distinta de finances/env-stack/tjpa; sai do umbrella pra item próprio). Related: #12 (o bridge cross-fonte cujo valor este supera). Feeds: GTD ^dogfd1 (earn-or-retire).\n\nDeliverable-state: ready-for-build\nGoverning Spec: specs/spec-repo-issues-federation.md v1 (frozen 2026-09-04). Freeze landed on branch work/31-repo-issues-federation (commit 37b7e52, Refs #31). Only implementation remains.\n",
+      "state": "closed",
+      "labels": [],
+      "url": "https://github.com/fppfurtado/iris/issues/31",
+      "created_at": "2026-09-04T14:59:24Z",
+      "updated_at": "2026-09-04T15:51:05Z",
+      "closed_at": "2026-09-04T15:51:05Z",
+      "comments": []
+    },
+    {
+      "ref": "30",
+      "title": "iris-dogfood-audit under-counts `mr list` as a constellation-direct bypass (routed-share inflated)",
+      "body": "## Logged dogfood exception + instrumentation gap (surfaced by operator challenge, session mneme/b6fd9cf0, 2026-09-04)\n\n### The logged exception (the `mr list` bypass)\nIn session `-storage-dev-projects-mneme/b6fd9cf0` I ran `mr list | grep working-state` once (to locate the working-state repo for the OPEN seeds-read axis). That reads `~/.mrconfig` — exactly what the dogfood parenthetical names as fronted: *\"Orientação de repos/ecossistema → `iris repos` … NÃO ler ~/.mrconfig / catalog-info direto\"*. So it is a **fronted-op bypass**. Reason it happened: I treated it as a filesystem path-lookup, not repo-orientation — `iris repos` would have served (it lists repos with their paths/tags). Recognition slip, not an iris shortcoming.\n\n### The instrumentation gap (higher-value)\n`iris-dogfood-audit --since 2026-09-04` classified that session as **`iris=1 · constellation-direct=0 → ROUTED` (100%)** — it did **not** flag the `mr list` bypass. So the auditor's `constellation-direct` detector appears to key on catalog-info/CONSTELLATION reads but **misses `mr list` (a `~/.mrconfig` read)**, which the dogfood doctrine treats as a fronted repo-orientation op.\n\nConsequence: **routed-share is inflated** (real bypasses undercounted). This directly affects the publish/hold decision on the dogfood (mneme `^dogfd1` weighs the routed ratio vs the 3% baseline) — the metric it reads is optimistic.\n\n### Proposed fix\nExtend the audit's bypass detector to count `mr list` / `mr ls` (and any direct `~/.mrconfig` read) as `constellation-direct`, so routed-share reflects repo-orientation bypasses too. Optionally add a hint that `iris repos` fronts it.\n\nRelated: iris#29 (fronting extra mneme reads). Distinct: this is about audit ACCURACY + a repo-orientation bypass, not new fronted surfaces.",
+      "state": "closed",
+      "labels": [],
+      "url": "https://github.com/fppfurtado/iris/issues/30",
+      "created_at": "2026-09-04T10:48:16Z",
+      "updated_at": "2026-09-04T16:12:22Z",
+      "closed_at": "2026-09-04T16:12:22Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "FIXED 2026-09-04. Detector de bypass estendido em `~/.local/bin/iris-dogfood-audit`.\n\n**Mudança**: `CONSTELLATION_DIRECT` agora casa também `\\bmr\\s+(list|ls)\\b` além de `.mrconfig`/`catalog-info.yaml` — `mr list`/`mr ls` leem `~/.mrconfig` implicitamente (a string `.mrconfig` nunca aparece, então o padrão literal sozinho os perdia). Docstring atualizada + hint no rodapé (`iris repos` fronta orientação de repos) quando há bypass constellation.\n\n**Verificação end-to-end**:\n- Regex: `mr list`/`mr ls`/`cat ~/.mrconfig` → flag; `mr run`/`mr update`/`mr status`/`iris repos` → não-flag (guard preservado).\n- Caso citado (sessão `mneme/b6fd9cf0`, o `mr list | grep working-state`): antes `constellation-direct=0 → ROUTED`; agora `constellation-direct=1 → MIXED`. O routed-share deixou de ser otimista.\n\n**Impacto no `^dogfd1`**: a métrica que alimenta a decisão publish/hold agora conta bypasses de repo-orientação — routed-share reflete a realidade (`--since 2026-09-04`: iris=50, mneme-direct=2, constellation-direct=4, routed-share=89%, bem acima do baseline de 3%, com contagem de bypass corrigida).\n\nSnowflake (não é arquivo de repo) — disposição env-stack rastreada no GTD `^dogfd1` (promote/remove no close do dogfood).",
+          "created_at": "2026-09-04T16:12:21Z"
+        }
+      ]
+    },
+    {
+      "ref": "29",
+      "title": "Validated-need (dogfood): frontar leituras extras do mneme — GTD open-tasks + handoff sequencial do journal",
+      "body": "## Contexto\n\nSinal de **validated-need** (grow-by-validated-need, README §\"additional federated sources grow by validated need\") levantado no **dogfood da iris** — sessão Claude Code no repo `expedidor`, 2026-09-03/04. Alimenta a decisão publish/hold do GTD `^dogfd1`.\n\nCandidato: **frontar leituras adicionais do mneme como contexto federado** — especificamente **GTD open-tasks** e **leitura sequencial/handoff do journal**. Distinto dos itens existentes: iris#9 (relation/inventory sem `--json`), iris#11 (fontes novas: finances/env-stack/tjpa), iris#12 (bridges cross-faceta J6/J5/J3). Nenhum cobre estes dois.\n\n## Fronteira mantida (não é \"frontar tudo\")\n\nO teste NÃO é \"op foi usada\" — é \"a **federação** agrega valor sobre a chamada direta\":\n- **Ops de escrita/manutenção** (`mneme task` write, `index rebuild`, `journal` write) ficam **FORA por invariante** — *read-only by construction*. Uso não as valida, em nenhuma frequência.\n- **Leitura em proxy puro** (lista crua, nada composto) = sinal fraco (passthrough).\n- **Leitura sob fricção de composição** (o agente cruzando-a à mão com `ground`/`context`) = sinal **forte** — é a composição manual que a federação removeria.\n\n## Evidência desta sessão (2 instâncias fortes)\n\n1. **GTD ⋈ tracker.** Pra responder \"próxima missão recomendada\" no expedidor, li os `mneme task list/gated/waiting` (direto) **e** o backlog de issues do expedidor, e cruzei à mão: reconhecer que os GTD `^ryg782`/`^e61rez` = a camada **BI-a-jusante** do store; notar que **nenhum** item de GTD aterrissa no expedidor. `ground`/`context` não incluem estado de GTD → composição feita manualmente. Candidato: GTD open-tasks como leitura federada em `context`.\n\n2. **Leitura sequencial de handoff do journal.** O ritual de abertura exige ler os blocos MAIS NOVOS de hoje/ontem **em ordem cronológica** (handoff). `ground` traz blocos do journal por *relevância*, não a fatia sequencial recente → fiz por `tail` direto. Candidato: uma leitura journal-recent/handoff adjacente ao `context`.\n\nAmbas são leituras de fonte **já federada** (mneme) — não ferem o read-only; são valor de assembly, no centro da tese.\n\n## Disposição\n\nCandidato a facet/read de leitura, **não** feature comprometida — cresce por necessidade validada e depende da decisão publish/hold (`^dogfd1`). Guardar o viés-novidade: GTD-em-contexto pode ser ruído; a decisão de incluir é do mantenedor. Este registro é a 1ª evidência aterrada; anexar as próximas instâncias aqui em vez de abrir issues novas.\n\nTrigger-source: instrumento de validação do dogfood ^dogfd1 (papel corrigido 2026-09-05): acumula evidência de oportunidade (GTD⋈issues hand-composto sem iris context) durante a janela. Earn-candidate sobrevivente = braço (a) GTD⋈issues-do-repo (cross-source; = estender iris context com o GTD do repo). Braço (b) journal-handoff = within-mneme, DISCONFIRMADO/re-home mneme (R1). Fires (build) quando ^dogfd1 resolver EARN com uso composto real acumulado; senão RETIRE. Append evidência meanwhile.",
+      "state": "open",
+      "labels": [
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/29",
+      "created_at": "2026-09-04T08:31:52Z",
+      "updated_at": "2026-09-08T14:38:29Z",
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "elect-mode 2026-09-04: #12 elected (lifted) as a thin vertical slice that ABSORBS this item's GTD-read half as the input for its repo⋈GTD join demo. #29 stays PARKED for the remaining read-expansion scope (sequential journal-handoff read + broader), which grows by validated need. Track the GTD-read's realization under #12's frame.",
+          "created_at": "2026-09-04T09:19:06Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "CORREÇÃO (2026-09-04, pós-probe A1): o slice do #12 NÃO absorve mais o read-de-GTD deste item. Probe run-don't-predict desconfirmou repo⋈GTD por identidade resolvida (GTD-tasks têm scope vazio 0/17, não são entidades, sem backlinks) → o slice pivotou (operador escolheu X) para repo ⋈ journal-activity, que TEM identidade resolvida hoje via spine edge index. #29 (GTD-read + journal-handoff read) segue INTEGRALMENTE parked/grow-by-validated-need; a metade-GTD só vira input de bridge quando GTD expuser identidade resolvível (populate scope / entity-link — kin iris#9). Nota anterior de absorção fica superseded.",
+          "created_at": "2026-09-04T09:28:35Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Instância de evidência (append) — sessão iris 2026-09-04, abertura + query de estado do dogfood\n\nSinal **forte** (candidato 1: GTD ⋈ tracker), mais uma composição-à-mão que a federação removeria.\n\n**O que aconteceu.** Abertura de sessão no próprio `iris`. O passo de grounding do ritual **roteou via `iris ground`** (dogfood OK). Mas as leituras de GTD do ritual — `mneme task list --status open`, `task gated`, `task waiting` — foram **diretas** (contam como `mneme-direct` no audit). Idem a leitura de handoff do journal (fiz `journal query` direto, cronológico).\n\n**A composição-à-mão (o valor de assembly).** Pra responder \"como está o estado do dogfood?\", cruzei manualmente:\n- os GTD gated `^dogfd1` / `^fl1p26` (lidos via `mneme task gated`) **⋈** o estado vivo do tracker do iris (issues #29/#30/#31/#32 via `gh`) **⋈** o `iris-dogfood-audit` **⋈** `~/.local/state/iris/requests.jsonl`.\n- Reconheci à mão que o `^dogfd1` \"NEXT = acumular uso de `iris context` roteado\" bate com o fato (lido do request-log) de que `iris context` tem **0 invocações reais** — join que nenhuma op federada me deu pronto.\n\nIsto é exatamente o candidato 1: **estado de GTD referenciando um repo ⋈ o estado do tracker/repo daquele repo**, hoje montado à mão porque nem `ground` nem `context` incluem GTD.\n\n**Nota estratégica (reforça a fronteira do issue).** O earn-lever aqui é o **join** (candidato 1), não o passthrough (candidato 2, journal-handoff single-source — sinal fraco, alinhado aos 2 disconfirms repo⋈journal/gnucash). Se/quando `^dogfd1` resolver ADOPT, a forma natural do candidato 1 = **estender o `iris context <repo>` já shipado (repo⋈open-issues) para repo⋈open-issues⋈GTD-que-referencia-o-repo** — não uma faceta isolada nova.\n\n**Correção de premissa registrada:** o gap de earn do `^dogfd1` é de **USO** da composição já shipada (`iris context`, 0 invocações), não de build de novas leituras. Frontear as leituras do ritual via passthrough subiria routed-share sem earnar — não é o caminho. Mantém o #29 gated-on-adopt; esta é acumulação de evidência, não build.",
+          "created_at": "2026-09-04T22:47:43Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Evidência de dogfood — sessão 2026-09-05 (gate `^dogfd1` dia 2 de ~14)\n\nRegistro da 2ª instância aterrada (append per o próprio corpo — não abrir issue nova).\n\n**Dado material (`~/.local/state/iris/requests.jsonl`, 37 linhas, 2026-09-03→05):**\n- Breakdown por op: **`ground`×35 + `repos`×2 + `context`×0**.\n- routed-share agregado **59%** (vs baseline **3%**), 58 sessões — mas a métrica que sobe é a ERRADA.\n\n**Leitura (contra a fronteira deste issue):** todo o tráfego roteado é **fonte-única em proxy** (`ground`=mneme grounding, `repos`=constellation listing) = o **sinal FRACO/passthrough** que este issue define como NÃO-validante. A superfície que EARN a camada — a composição cross-fonte `iris context` (repo⋈issues, shipada em #31/PR#32) — tem **uso real ZERO**. Ou seja: earn-PATH existe e está provado deterministicamente (`test_earn_datum.py`); earn-EVIDENCE = nulo.\n\n**Instâncias de hand-composition nesta sessão (o sinal forte que este issue quer):** `curate` + `orient` no iris ambos raciocinaram sobre repo⋈open-issues **sem** rotear `iris context`. Parte é legítima (orient/curate precisam dos campos estruturados do sub-tool `backlog`, que `iris context` não expõe); mas o padrão geral 'recomendar próxima missão cruzando repos+issues' É o job do `context`, e ele está indo a zero.\n\n**Disposição p/ `^dogfd1`:** leaning **HOLD-por-falta-de-evidência** (não HOLD-decidido). Gate imaturo por 2 motivos independentes: tempo (2/14) e métrica-certa (`context` use) em zero. O que move o ponteiro = uso composto real de `iris context` acumulado — enquanto ficar em zero, o gate não fecha por ausência de evidência, não por veredito.",
+          "created_at": "2026-09-05T22:40:45Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "Exceção-logada de dogfood (sessão expedidor 2026-09-05, orient): rotei o grounding do ritual OPEN via **CLI `iris ground`** (Bash), não via a tool `mcp__iris__ground` — a iris SERVIU (não é 'não serviu'), foi deslize de interface. Impacto no sinal: o `iris-dogfood-audit` lê o transcript por chamadas MCP, então uma chamada CLI conta como bypass/não-roteado e infla o denominador do ratio publish/hold (^dogfd1). Causa-raiz (já capturada na memória de projeto `dogfood-iris-via-mcp-neste-repo`): a entrada `open-ground` do ritual está escrita como comando de shell, o que empurra pra CLI-first + viés de hábito de tooling (default a Bash). Prevenção candidata: a rung de fallback deveria ser MCP-first mesmo quando a CLI existe; considerar reescrever a linha `open-ground` do manifesto do ritual pra não pré-formatar como shell quando há tool MCP equivalente.",
+          "created_at": "2026-09-05T23:32:31Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Condução (delego) — split de costura R1 + papel corrigido do #29\n\nAplicando a regra R1 ratificada (iris = transporte + cross-source; fontes = dado + within-source) aos **dois braços** deste issue — e o resultado muda o que #29 deve virar:\n\n**Braço (a) — GTD ⋈ issues-do-repo = CROSS-SOURCE, earn candidate legítimo (SOBREVIVE).** GTD vive no mneme, issues no forge/constellation → join genuinamente cross-fonte e **não-redundante**: nenhuma chamada única compõe GTD+issues hoje (nem `ground` nem `context` incluem estado de GTD). É a extensão natural do `iris context` que o #31 shipou (repo⋈open-issues) + o braço GTD. **Recorre TODA abertura de sessão** (o ritual hand-compõe GTD⋈repo pra recomendar missão) → causa estabelecida, não n=1.\n\n**Braço (b) — leitura sequencial de handoff do journal = WITHIN-MNEME (DISCONFIRMADO, re-home mneme).** GTD (mneme tasks) e journal (mneme journal) vivem **AMBOS no mneme** → a composição journal-handoff é **within-source**. Por R1 pertence ao **mneme crescer o próprio read** (ex.: `mneme context` bundlando tasks+journal), NÃO ao transporte iris. Frontar pelo iris seria passthrough — o **3º disconfirm** de within-source-via-iris (junto de gnucash-facet + repo⋈journal #12). Braço (b) sai do escopo de earn do iris.\n\n**Papel corrigido do #29:** deixa de ser 'registro passivo até adopt' e passa a ser **o instrumento de validação do `^dogfd1`** — acumula evidência de OPORTUNIDADE (hand-composition de GTD⋈issues sem `context`) durante a janela. O braço (a) é o único earn-candidate sobrevivente, agora **nomeado**: 'estender `iris context` com o GTD do repo', não 'frontar GTD+journal genérico'. Continua gated no mesmo earn-or-retire de `^dogfd1`; critérios do dia-14 pré-registrados no GTD `^dogfd1`.",
+          "created_at": "2026-09-05T23:34:58Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Instrumento de captura CONSTRUÍDO (delego, condução 2026-09-06) — P1+P2 + achado honesto\n\n**P1 — `iris-dogfood-audit` estendido** (snowflake `~/.local/bin/iris-dogfood-audit`). Agora separa as **2 perguntas**:\n- **[A] Skeleton usage** (corrigido): routed-share **excluindo iris-self** + iris-self reportado à parte + shape por-repo data-driven (backlog vs no-orient) + coluna `ctx` (uso de `iris context`). Resultado janela 09-03→06: **56% roteado excl-self** (iris=59 / mneme-dir=24 / const-dir=23); iris-self à parte (iris=42).\n- **[B] S2-opportunity** (a pergunta que decide): sinal **LIMPO** = contagem de `iris context` one-shot por shape → **backlog=0, no-orient=0, iris-self=16** (os 16 são dev/teste do #31, excluídos). **Confirma `context`=0 em uso real cross-repo.**\n\n**ACHADO HONESTO (o build revelou):** a Pergunta-B **NÃO é barata de derivar de transcript.** Minha 1ª assinatura de co-ocorrência (issue-read ∧ GTD/journal-read ∧ context=0) **saturou** (53/53 backlog 'MISSED') porque o **GTD-read do ritual de abertura é UNIVERSAL** (`mneme task/journal/ground` roda toda sessão) → a co-ocorrência colapsa em 'a sessão tocou issues'. Peguei no 1º teste com dado real e **rotulei como TETO saturado, não medida** — em vez de shipar falsa-precisão. É o gatilho de escalação que pré-nomeei (P3 'se a heurística provar ruidosa').\n→ **Consequência p/ o dia-14:** a Pergunta-B (miss de composição-S2) fica com 2 vias, NÃO o auto-detector: (1) **razões via `iris-dogfood-note`** (P2), (2) o **served-count LIMPO**, e (3) detector semântico por-sessão **diferido** (classe P3 / throughline#1260). O auto-transcript NÃO fecha B sozinho.\n\n**P2 — `iris-dogfood-note` CONSTRUÍDO** (snowflake novo `~/.local/bin/iris-dogfood-note`): one-liner cross-repo, resolve repo pelo cwd, append em `~/.local/state/iris/exceptions.jsonl`. Captura a RAZÃO do bypass (sinal #6) que máquina nenhuma infere.\n\n**Env-stack (birth-trigger):** 2 snowflakes tocados (`iris-dogfood-audit` editado + `iris-dogfood-note` novo) + `exceptions.jsonl`. Disposição = **keep-snowflake transiente** pela janela do dogfood; dispor no close do `^dogfd1` (junto dos demais snowflakes iris já listados lá). NÃO promover a chezmoi (transiente).",
+          "created_at": "2026-09-06T03:17:06Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "**PROGRESSO 2026-09-06: arm-a BUILT → PR #35** (`build/repo-tasks-federation`).\n\nO join `GTD ⋈ repo` está implementado e provado. `iris context` agora compõe, sob cada repo, **issues (tracker) + tasks GTD que o referenciam** — num tiro.\n\n- **Source `tasks`** (source-agnostic, BR02): 1 chamada CLI pra lista aberta inteira; linkagem repo derivada dos refs `<repo>#<n>` no texto (BR06, lowercase-led → corta ruído de acrônimo `PR#25`/`P1#3`), não campo carregado. Task sem ref fica FORA do join (zero ruído); task referenciando repo fora do registry surfa em nota unmatched distinta (F6 honesto).\n- **Composer** generalizado (`_grouped` compartilhado) sobre ambos os satélites; `ComposedRepo(repo, issues, tasks)`. Paridade CLI + MCP.\n- **Earn datum estendido**: composto `repo⋈tasks` == hand-cross manual, provado deterministicamente (`test_earn_datum::test_composed_gtd_join_equals_manual_hand_cross`). 58 testes passam.\n- **Verificado end-to-end em dados reais** (mneme + gh no repo iris): mostra as 7 issues + as 2 tasks que referenciam iris (`^fl1p26`, `^dogfd1`) juntas.\n\n**ACHADO MATERIAL p/ o gate `^dogfd1` (env-stack):** o config ATIVO do operador (`~/.config/iris/sources.toml`) hoje declara SÓ `constellation` + `mneme`(cli-json) — **sem `tracker`, sem `tasks`**. Ou seja, `iris context` nas sessões reais de dogfood NÃO produz composição alguma (nem issues nem tasks) — o que explica diretamente o `context×0`/sinal fraco. Pra arm-a gerar evidência de earn real, o config ativo precisa declarar `tracker` + `tasks`. Decisão de wiring (forge gh vs glab no ecossistema misto) pendente com o operador — não wireei silenciosamente.\n\nArm-b (journal-handoff) segue disconfirmado/re-home-mneme (within-source, R1) — fora deste PR.",
+          "created_at": "2026-09-06T10:19:00Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Evidência dogfood (2026-09-06): tracker habilitado no config ativo → 1º uso composto real de `iris context`\n\n**Enabler landou:** #36 merged (PR #37) removeu o fan-out all-registry que mantinha o `[sources.tracker]` deferido. Com o scoping query-derived, habilitei o tracker no config ativo (`~/.config/iris/sources.toml`, `command = gh issue list --state open --json number,title`).\n\n**1ª instância de `iris context` composto real** (a métrica estava em `context`=0 até aqui):\n`iris context \"trabalhar em iris#29 e a decisão do dogfood\"` retornou, em UMA chamada, repo⋈issues⋈tasks composto:\n- `iris` com suas 7 issues abertas (#34/#29/#13/#12/#11/#9/#5) — de **1 único spawn `gh`** (só o repo citado), não ~28;\n- GTD tasks juntadas sob os repos que citam (meta-system, agent-kit, mneme, iris);\n- ~3.9s wall-clock (1 gh + mneme ground + mneme task list).\n\nSem o scoping do #36 isso teria custado ~28 spawns `gh`. É exatamente a composição-S2 que antes exigia hand-composition (ler `mneme task list` + backlog de issues + cruzar à mão). **A superfície que EARN (composição repo⋈issues via `iris context`) agora tem uso composto real ≠ 0**, roteável em sessões vivas.\n\n**Disposição env-stack:** o stanza `[sources.tracker]` é keep-snowflake transiente — parte do arranjo dogfood do config ativo, a dispor junto dos demais snowflakes no close do `^dogfd1` (publish/hold). Não promovido a chezmoi (todo o config ativo do iris é arranjo transiente pendente da decisão).\n\n**Para o dia-14:** a partir de agora o `iris-dogfood-audit` served-count de `iris context` deve começar a contar uso composto real (não-iris-self) conforme sessões citarem `<repo>#<n>` em tasks de context.",
+          "created_at": "2026-09-06T21:43:51Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Instância de evidência (append) — replay contrafactual, 2026-09-08\n\nRodado `iris context` (via CLI, fora do transcript pra não contaminar o `iris-dogfood-audit`) sobre 4 tasks reais (A)-shape: agent-kit#1401, expedidor#310, mneme#276, iris#29. **Resultado vs bar S2 ('integral RELEVANTE num tiro'): 0 SERVED limpo, 3 PARCIAL, 1 borderline (iris#29).**\n\n**Causa (código, `core/compose.py` + `cli.py:82`):** `compose_repo_issues` emite TODOS os repo-nodes incondicionalmente → roster inteiro (~30 repos, maioria vazia) despejado. Só **issues** (scoped por #36) e **grounding** (hits) respondem à task; roster + atribuição de task (por repo-ref solto → `^fl1p26` espalha) não são relevance-gated. Sem deep-read de item único (miss logado 09-06).\n\n**Reversão honesta:** o baixo uso de `iris context` no dogfood **não é só** demanda/fencing — a superfície entrega PARCIAL mesmo dado o at-bat, por defeito **fixável** de relevance-scoping. Isso separa duas perguntas que os critérios do `^dogfd1` fundem: **demanda** ('o agente quer') vs **servabilidade** ('é bom quando chamado'). Fix rastreado em **#38**.",
+          "created_at": "2026-09-08T14:38:29Z"
+        }
+      ]
+    },
+    {
+      "ref": "28",
+      "title": "CLI iris ausente no PATH do harness Claude Code (só MCP deployado) — dogfood empurra CLI-first → bypass",
+      "body": "## Contexto\n\nExceção logada do dogfood da iris (per a diretiva `## Dogfood: iris como camada de contexto` no CLAUDE.md global e o GTD `^dogfd1`), levantada numa sessão do **Claude Code no repo `expedidor`** (2026-09-03).\n\n## O quê\n\nA **CLI `iris` não está no PATH** deste harness (Claude Code / ambiente do expedidor) — só o **servidor MCP** está deployado (`mcp__iris__ground` / `mcp__iris__repos` disponíveis e funcionando). Um `iris ground …` / `iris repos …` via shell resulta em `iris: command not found`.\n\n## Por que importa (para o dogfood)\n\nA instrução de roteamento lista as duas superfícies como equivalentes — `iris ground \"<q>\"` **ou** `mcp__iris__ground` — mas:\n\n1. A entrada `open-ground` do **ritual de abertura** está escrita como **comando de shell** (`mneme index rebuild && iris ground …`), o que empurra o agente pra **CLI-first**.\n2. Com a CLI ausente, o CLI-first cai facilmente num **bypass** pra fonte frontada-away (`mneme ground` direto) em vez do fallback correto pro MCP — exatamente o bypass silencioso que o dogfood existe pra detectar. (Ocorreu nesta sessão; corrigido ao re-rotar pelo MCP.)\n\n## Dispoisção candidata (decisão do mantenedor)\n\nUma das duas — não ambas necessárias:\n\n- **(a)** deployar a CLI `iris` no PATH deste harness (paridade CLI+MCP como a instrução assume); ou\n- **(b)** ajustar a instrução do dogfood / a entrada `open-ground` do ritual pra nomear o **MCP como superfície primária em sessões Claude Code** (onde a CLI não está garantida), deixando a CLI como fallback e não o inverso.\n\nSinal de env-stack real, distinto do erro pontual do agente (que já foi corrigido nesta sessão).\n",
+      "state": "closed",
+      "labels": [
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/28",
+      "created_at": "2026-09-04T08:14:30Z",
+      "updated_at": "2026-09-04T08:54:03Z",
+      "closed_at": "2026-09-04T08:54:03Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "Disposição (a) — CLI iris deployada no PATH: ~/.local/bin/iris, wrapper fino `exec uv run --directory /storage/dev/projects/iris iris \"$@\"` (espelha a invocação do servidor MCP e o padrão do iris-dogfood-audit; config por XDG discovery, sem IRIS_CONFIG). Verificado de cwd neutro: iris ground/repos/context todos funcionam via PATH. Escolhido (a) sobre (b) por um argumento decisivo descoberto na investigação: o MCP só expõe ground+repos — NÃO tem equivalente de `context`, que a diretiva de dogfood roteia (`iris context`) e que é a op de COMPOSIÇÃO cujo valor o dogfood existe pra medir (cf. #12). (b) 'MCP primário' deixaria context inalcançável no Claude Code — não honraria a diretiva. NOTA env-stack: o wrapper é birth de env-stack imperativo → disposição consciente pendente (snowflake vs promote-loadout), NÃO auto-promovido.",
+          "created_at": "2026-09-04T08:54:02Z"
+        }
+      ]
+    },
+    {
+      "ref": "19",
+      "title": "pre-flip: decide disclosure of the vendored operator-personal ritual block in AGENTS.md",
+      "body": "Surfaced while re-vendoring the session-boundary ritual block v9→v12 (PR #18, GTD ^ram96v). The vendored block is **operator-personal by declaration** (its own header: \"names my own ecosystem tools — mneme, meta-bridge, backlog... never published to strangers\") and names private-ecosystem surfaces (mneme instance, working-state programs, meta-bridge). The iris#6 scrub covered trace trailers; this AGENTS.md surface was not part of that decision.\n\n**Decide before the public flip** (gate rides the flip timing, GTD ^fl1p26): options — (a) strip the block pre-flip (machine-deployed hooks still deliver the ritual to Claude Code sessions; the stub's cross-harness value is lost in this repo only), (b) keep it (accept the named-tools disclosure — they are names, not contents; same class as agent-kit#730's abstract-edge posture, which leaned AGAINST even abstract edges), (c) genericize (a one-line pointer without tool names).\n\nTrigger-source: the flip act itself (repo Settings → public; tracked at GTD ^fl1p26) — whoever executes the flip checks this issue first.\n\nProvenance: agent-kit#730 (public→private edge posture) · iris#6 (scrub, closed) · agent-kit#771 (v12 stub).",
+      "state": "closed",
+      "labels": [],
+      "url": "https://github.com/fppfurtado/iris/issues/19",
+      "created_at": "2026-08-14T16:37:27Z",
+      "updated_at": "2026-09-03T18:43:46Z",
+      "closed_at": "2026-09-03T18:43:46Z",
+      "comments": []
+    },
+    {
+      "ref": "13",
+      "title": "MCP HTTP/remote transport",
+      "body": "Fase 1 é stdio-only. Transport HTTP/remote é fase futura.\n\nTrigger-source: validated need for non-stdio MCP transport (a remote/multi-host client stdio can't serve). Fires when such a client/consumer surfaces.",
+      "state": "open",
+      "labels": [
+        "future-phase"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/13",
+      "created_at": "2026-08-11T11:04:43Z",
+      "updated_at": "2026-09-04T08:48:58Z",
+      "closed_at": null,
+      "comments": []
+    },
+    {
+      "ref": "12",
+      "title": "Capacidades futuras: bridges cross-faceta (J6), atuação agent-mediated (J5), curadoria de conhecimento (J3)",
+      "body": "Deferido pelo Spec/PRD. Pontes curadas entre facetas (J6), atuação agent-mediated (J5), curadoria de conhecimento (J3) — cada uma cresce por necessidade validada.\n\n\nRelated: #29 — measured-by (bridge value is quantified by #29's hand-composition log)\n\nRelated: #11 — related (bridge value scales with source count #11)\n\nTrigger-source: worth-solving probe (pós-lift, 2026-09-04) DISCONFIRMED o bridge — repo⋈journal redundante com `mneme backlinks` (1 call), repo⋈GTD 0 arestas block-level resolvidas. Re-park: fires quando (a) ^dogfd1 resolver earn-or-retire E (b) o protocolo de identidade cross-store (Brief F6) for framado — aí re-derivar worth sobre um join genuinamente NÃO-redundante entre fontes co-identificáveis (não repo⋈journal)",
+      "state": "open",
+      "labels": [
+        "future-phase"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/12",
+      "created_at": "2026-08-11T11:04:40Z",
+      "updated_at": "2026-09-04T20:33:41Z",
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "## Clarificação de avaliação (dogfood `^dogfd1`): tese vs. construído — o bridge é o valor real não-realizado\n\nLevantado numa sessão Claude Code no `expedidor` (2026-09-03/04), ao aterrar a pergunta \"qual a vantagem da iris sobre chamar as ops direto?\". Registro aqui pra a decisão publish/hold não recomeçar do zero.\n\n### Estado atual (o código, não o discurso)\n- `core/federation.federate()` é **fan-out + concatenação** (`hits.extend(...)`) com isolamento por-fonte. **Sem merge, dedup ou ranking cross-fonte** — grep por `bridge`/`dedup`/`merge`/`resolved identity` no `src/` volta vazio.\n- `context` está marcado *\"Fase 1 heuristic\"*: imprime `## repos` + `## grounding` como **justaposição**, não síntese.\n- Fontes ativas: **duas** (`constellation`, `cli-json`→mneme).\n\n→ As **\"bridges by resolved identity\"** da tese (README) **não estão implementadas** — são esta issue (#12).\n\n### Consequência pra avaliação\nCom 2 fontes e sem bridging, o valor da iris **sobre chamar direto** hoje é modesto e **não é composição**: contrato único (CLI+MCP sobre um core), degradação graciosa, fontes por config. Nenhum resultado composto que o agente não montaria à mão barato. **A impressão de \"só um intermediário\" está correta pra esta fase.**\n\nO valor da tese vive em dois eixos **ainda não-realizados**:\n1. **Bridge by resolved identity** — o join cross-fonte. Ex.: *\"repos `pro-bono` E atividade recente no journal deles E GTD aberto atrelado\"* — uma identidade (o repo) resolvida através de constellation ⋈ journal ⋈ GTD, devolvida composta. Instância concreta desta sessão: pra recomendar a próxima missão do expedidor, cruzei GTD (`mneme task`) ⋈ backlog de issues **à mão** — exatamente o que o bridge automatizaria (ver #29).\n2. **Escala de fontes** (#11) — o fan-out vale mais com N; a 2 é fino, a 6 (finances/env-stack/tjpa) \"uma chamada por todo o contexto\" é materialmente diferente.\n\n### Postura recomendada pro `^dogfd1`\nJulgar a iris pelo valor de **bridge + escala se materializar** (grow), não pelo passthrough de 2 fontes de hoje. #29 é o caso-teste vivo: cada composição-à-mão registrada lá mede quanto o bridge (#12) pouparia. A pergunta honesta do dogfood — \"a federação ganhou o lugar dela?\" — hoje responde **ainda não provou**, porque o valor está por construir, não porque falhou.\n",
+          "created_at": "2026-09-04T08:45:04Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "FRAME HALT 2026-09-04 (elected in elect-mode, then halted on evidence — dossier .throughline/dossiers/bridge-resolved-identity-slice.md). Ran frame → A1 probe → operator pivot (repo⋈GTD → repo⋈journal) → blind-critic (J3/J5/J6) → coverage census. Verdict: thin-slice worth-solving DISCONFIRMED. Root cause: iris's federated sources do not carry DENSE resolved identity — repo⋈GTD has no resolved identity (scope 0/17, tasks not entity-linked, prose only), repo⋈journal is resolvable but pervasively sparse (census 7/28, max 2). A bridge built now returns near-empty and doesn't beat a direct call, so it doesn't answer ^dogfd1. Reframed into two arms (see Trigger-source): (A) upstream mneme identity-density, (B) iris identity-resolution-over-prose. Blind-critic caught that the pivot pruned repo⋈GTD on a SWAPPABLE property (empty scope, not intrinsic) and promoted the replacement's worth-solving on an assertion the census then undercut. #12 re-parked (lift reversed). This finding is material evidence for the publish/hold decision ^dogfd1: the composed-value gap is a DATA gap, not just an unbuilt bridge.",
+          "created_at": "2026-09-04T09:38:13Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "WORTH-SOLVING PROBE (2026-09-04, post-lift) — thin-slice DISCONFIRMED again, sharper reason\n\nThe lift made #12 actionable and named the 1st build act a *cheap worth-solving probe* (\"demonstrate one composed result BEATS two direct calls; density existing ≠ composition winning\"). Ran it on REAL data (run-don't-predict), repo=iris:\n\n**repo ⋈ journal (dense/resolvable):** `mneme backlinks iris --json` ALREADY returns the 67 journal blocks linking iris, resolved-by-identity, in **ONE call**. The bridge would only add the constellation node's tags (near-empty) → saves one trivial lookup. Marginal.\n\n**repo ⋈ GTD-tasks (high felt-value):** the resolved edge index carries ONLY `knowledge/gtd.md → iris` at **FILE level** (probe: **0 block-level** gtd edges, 4 file-level; same for expedidor/agent-kit). Resolved identity yields \"gtd.md mentions iris\" (a `grep -l` bit); the actual 3–4 tasks are STILL prose-grepped (flat file, `scope` empty 0/17, no per-task edges). The bridge **cannot resolve better than the grep** → cannot beat it.\n\n**Root cause (sharper than the pre-#259 halt):** #259's density landed in the dimension that was ALREADY a single call (journal→repo), NOT in the high-value cross-cut (repo↔GTD-task), which stayed unresolved. The J6-flagged swappable disqualifier got swapped for journal (dense now) but NOT for GTD — a distinct, still-standing property.\n\n**Feed to ^dogfd1:** iris federates exactly 2 sources, each already exposing its within-source resolved identity as a single direct call (`iris repos`, `mneme backlinks`). On today's 2-source federation the bridge cannot out-value the direct calls — a DATA/granularity gap, not an unbuilt-bridge gap. Leans the **composed-value axis** of publish/hold toward NOT-YET-EARNED (distinct from the routing-usage axis, which the audit shows positive).\n\n**RECOMMENDATION: HALT the thin slice** (no Brief / no Spec). **Re-park with SHARPENED trigger:** old block (\"no edges\") is closed; NEW block = \"GTD lacks task-granularity resolved identity AND repo⋈journal is redundant with a single `backlinks` call\". Fires when EITHER (a) mneme resolves GTD tasks to per-task edges / populates `scope` (upstream, kin #9/#11), OR (b) a framed identity-resolution-over-prose effort is elected (arm B, the real hard core, NOT a thin slice). Full trail: `.throughline/dossiers/bridge-resolved-identity-slice.md`.",
+          "created_at": "2026-09-04T12:51:08Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "Back-ref: Problem Brief `costura-iris-fonte.BRIEF.md` (frozen 2026-09-04). Disposição: **gated** na mesma pergunta empírica.\n\nA regra de costura ratificada (R1/C6) esclarece o veredito do probe deste item: o bridge do #12 **não** era violação de fronteira — era um join CROSS-fonte que consumia `backlinks` (transporte legítimo), haltado por REDUNDÂNCIA DE VALOR (repo⋈journal ≈ o que backlinks já dá em 1 call). Ou seja, #12 e o overlap `ground` colapsam na MESMA pergunta empírica (a composição bate a chamada direta?). O bridge legítimo do iris é só o join cross-fonte cujo valor supere a chamada direta — o candidato forte disso é repo⋈issues (iris#11), NÃO repo⋈journal.\n\nGate: (a) o resultado earn-or-retire do ^dogfd1, e (b) o protocolo de identidade cross-store (questão aberta do Brief/arranjo). Não re-park unilateral aqui — a disposição formal (re-park com trigger afiado vs. eleger repo⋈issues como o bridge de verdade) segue decisão do operador.",
+          "created_at": "2026-09-04T14:53:00Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "**Boundary clarification — from agent-kit#1285 frame (2026-09-04).** A new agent-kit capability (trace-unblock — single-item cross-repo **issue↔issue** dependency traversal → unblock sequence) considered iris as its owner and **rejected it on bounded-context grounds**: iris#12's agent-mediated actuation (J5) operates over the **faceta/constellation node-graph** (repos/systems — the mneme#187 axis), a bounded context distinct from the **issue-relation graph**. iris remains the cross-repo *reach substrate*, not the owner of issue-relation traversal. No action here — recorded to prevent future scope-conflation of the two graphs (and to keep J5's actuation domain-bound to facetas).\n",
+          "created_at": "2026-09-04T15:11:00Z"
+        }
+      ]
+    },
+    {
+      "ref": "11",
+      "title": "Facetas futuras (grow-by-validated-need) — earn só via JOIN co-identificável, não faceta isolada",
+      "body": "Deferido pelo Spec/PRD — grow-by-validated-need. Adicionar facetas como sources federadas conforme necessidade validada.\n\nTrigger-source: validated need to query a new facet (finances/gnucash · env-stack · tjpa work-corpus) through iris — a session composing that facet by hand. Fires per-facet on that signal (grow-by-validated-need).",
+      "state": "open",
+      "labels": [
+        "future-phase"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/11",
+      "created_at": "2026-08-11T11:04:38Z",
+      "updated_at": "2026-09-04T20:33:46Z",
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "Back-ref: Problem Brief `costura-iris-fonte.BRIEF.md` (frozen 2026-09-04, home: programa contexto-digital-integral, filho de arranjo.BRIEF — extends). Disposição: **job-reaffirmed como o EARN-PATH** da camada.\n\nO Brief da costura mneme⋈iris ratificou a regra R1 (a camada = transporte + composição cross-fonte; cada fonte = dado + resolução within-fonte) e mostrou que a camada só \"ganha o lugar dela\" (^dogfd1) quando uma 2ª fonte federada faz a composição bater a chamada direta. Este item (#11) é o home dos candidatos de 2ª fonte.\n\n**Candidato earn-path mais forte (registrar aqui p/ não perder):** **tracker-via-CLI (`gh`/`glab`) federado com o registro de repos (constellation)** → retorna **repo ⋈ issues-abertas** como unidade composta keyed na identidade do repo — um join genuinamente cross-fonte que NENHUMA fonte faz sozinha (constellation sabe o repo, gh sabe as issues; hoje o agente junta à mão). Não-redundante com chamada direta (ao contrário do repo⋈journal do #12, que era redundante com `backlinks`). Soberania resolvida no arranjo: o forge é front substituível sobre dado que você possui (export soberano = registro; leitura via CLI = interface viva, read/awareness).\n\n**Invariante C7 (re-afirmado):** todo adaptador de fonte é source-agnostic/público (não nomeia instância); a instância vive só na config privada. De-risca fontes sensíveis (ex.: um source `sql`/`database` genérico público + a instância pje-2.1 só na config privada — frame próprio deferido, ARMADO no Brief).",
+          "created_at": "2026-09-04T14:52:58Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "## Worth-solving probe (delego-elect, 2026-09-04): gnucash-facet DISCONFIRMED + reframe de nível-gerador\n\nEleito em elect-mode (`/backlog:orient`), rodei o probe barato de worth-solving ANTES de qualquer build (a lição do #12). Dado real, run-don't-predict.\n\n### Veredito: gnucash como faceta federada = **passthrough**, não earn\n- **Read surface existe:** o book `fppfurtado_financials.gnucash` é **SQLite 3** (não XML gzipado), `gnucash-cli` no PATH → adaptador viável.\n- **Join cross-fonte NÃO existe (a que decide):** o iris \"ganha o lugar dele\" (`^dogfd1`) só quando duas fontes compartilham uma **chave de identidade derivada** — `sources/_repos.py` deriva constellation+tracker do MESMO `~/.mrconfig` pela MESMA regra (basename do checkout; Brief F6 \"identity is derived, not matched by luck\"). **Finanças é BC isolado, sem chave compartilhada** com repo/constellation/knowledge (GUIDs internos do book; o mapa de facetas do seed não lhe dá ponte). Logo zero composição → leitura standalone → chamar o sqlite/`gnucash-cli` direto é tão bom quanto rotear pela iris.\n- É o **sinal fraco do #29** (\"proxy puro = passthrough\") e a **redundância que matou o repo⋈journal do #12**. Falha o bar R1/`^dogfd1` **por construção**.\n- *Convergência lateral:* gnucash=SQLite ⇒ colapsa no candidato `sql`/`database` genérico armado no Brief — mas convergência não resgata o earn (segue passthrough). O sql-source segue armado por OUTRO valor (C7 de-risco de fonte sensível), não por composição.\n\n**Disposição:** gnucash **retirado como candidato de composition-earn**. Não build.\n\n### Reframe de nível-gerador (o achado de maior valor)\nAgora são **dois** candidatos de #11 que disconfirmam pela MESMA razão — #12 (repo⋈journal, redundante) e gnucash (passthrough). O único candidato de #11 que passou o bar foi `repo⋈issues` (shipado via #31). Padrão: **\"adicionar faceta isolada nova\" está quase exaurido de earn-value** — as vanilla restantes tendem a falhar igual (env-stack e tjpa são BCs sem chave compartilhada; tjpa ainda por cima já mora no mneme = redundante).\n\n**O lever de earn real do iris não é fonte nova isolada — é JOIN sobre as fontes que já estão dentro** (chave de identidade compartilhada). Corolário pro `^dogfd1`: não re-eleger facetas vanilla esperando earn que a estrutura não dá; o próximo earn genuíno viria de um novo *join* entre fontes co-identificáveis, não de um 5º source solto.\n",
+          "created_at": "2026-09-04T19:41:13Z"
+        }
+      ]
+    },
+    {
+      "ref": "10",
+      "title": "Repro-env: pin Python 3.12",
+      "body": "Sem `.python-version`, um `uv sync` fresh resolve pro interpretador mais novo do sistema (3.14 observado), onde `fastmcp>=2,<3` não instala — a suite então falha na coleta. O `.venv` existente é 3.12; um worktree/máquina novo não tem essa sorte. Adicionar `.python-version` (ou teto menor em `requires-python` / matriz de CI) pra o toolchain ser reproduzível sem `--python 3.12` ad-hoc. Surfou 2026-08-11 buildando config-discovery (PR #2).",
+      "state": "closed",
+      "labels": [
+        "bug",
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/10",
+      "created_at": "2026-08-11T11:04:35Z",
+      "updated_at": "2026-08-12T09:38:46Z",
+      "closed_at": "2026-08-12T09:38:46Z",
+      "comments": []
+    },
+    {
+      "ref": "9",
+      "title": "mneme relation/inventory reads sem --json",
+      "body": "Spike SP-T3: os reads `relation`/`inventory` do mneme não têm `--json`. Se uma fase posterior precisar deles, pedir a flag upstream no mneme ou adicionar um fallback text-parse.\n\nTrigger-source: a later iris phase needs mneme relation/inventory reads (today unused) — then request --json upstream in mneme or add a text-parse fallback. Fires when a phase consumes those reads.",
+      "state": "open",
+      "labels": [
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/9",
+      "created_at": "2026-08-11T11:04:33Z",
+      "updated_at": "2026-09-04T08:48:46Z",
+      "closed_at": null,
+      "comments": []
+    },
+    {
+      "ref": "8",
+      "title": "Test hygiene: extrair conftest fixture compartilhada",
+      "body": "O builder da fixture de constelação está duplicado em `test_federation.py`, `test_mcp_adapter.py`, `test_s2_proof.py`. Extrair uma fixture compartilhada em `conftest.py`.",
+      "state": "closed",
+      "labels": [
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/8",
+      "created_at": "2026-08-11T11:04:30Z",
+      "updated_at": "2026-09-01T19:17:17Z",
+      "closed_at": "2026-09-01T19:17:17Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "Shipped via PR #24 (merged to main). The byte-identical constellation fixture builder is now a single `constellation_config` fixture in tests/conftest.py; the three test modules consume it. Behavior-preserving (same 28 tests green), net -24 lines.",
+          "created_at": "2026-09-01T19:17:16Z"
+        }
+      ]
+    },
+    {
+      "ref": "7",
+      "title": "Federation kind-awareness (review finding #1)",
+      "body": "`repos` (precisa só de nós) ainda invoca as grounding sources — ex.: uma source cli-json roda com query vazia em todo `repos`; `ground` dispara o scan completo da constelação que depois é descartado. Funciona (resultados filtrados) mas é wasteful + semanticamente frouxo. Tornar a federação kind-aware: um comando declara quais sources/result-kinds precisa, ou pula uma source cujo output descarta. Refinamento next-phase (a prova do skeleton S2 se mantém). Deferido do review do walking-skeleton.",
+      "state": "closed",
+      "labels": [
+        "enhancement",
+        "follow-up"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/7",
+      "created_at": "2026-08-11T11:04:28Z",
+      "updated_at": "2026-09-01T19:06:34Z",
+      "closed_at": "2026-09-01T19:06:33Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "Shipped via PR #23 (merged to main @ d7b03f1). Federation is now kind-aware: sources declare `produces`, queries declare `kinds`, and `federate()` skips a source whose output the caller would discard — closing both axes the finding named (wasteful reads + loose semantics). Backward-compatible (undeclared sources always read). Verified: 28 tests green + live E2E (`iris repos` no longer spawns the cli-json subprocess; `ground` no longer walks the constellation).",
+          "created_at": "2026-09-01T19:06:33Z"
+        }
+      ]
+    },
+    {
+      "ref": "6",
+      "title": "Scrub decision: trace trailers referenciam o brief privado",
+      "body": "Trailers de trace usam `Serves: arranjo:J*` — tokens abstratos, sem conteúdo de faceta, mas nomeiam o brief privado. Decidir se o slug é scrubbed antes do flip público; o J-trace completo permanece recuperável via os contratos privados.",
+      "state": "closed",
+      "labels": [
+        "public-flip"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/6",
+      "created_at": "2026-08-11T11:04:25Z",
+      "updated_at": "2026-08-14T13:13:21Z",
+      "closed_at": "2026-08-14T13:13:21Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "**Decisão ratificada pelo operador (2026-08-14): scrub mínimo — executado.**\n\n- Reescrita via `git filter-repo --replace-message` (mirror-clone → verificação → force-push): `Serves: arranjo:X` → `Serves: X` (tokens J*/C* preservados — o J-trace segue recuperável nos contratos privados, como o corpo deste issue previa) e `Reviewed-Spec: arranjo` → `Reviewed-Spec: private-contract`.\n- Alcance: 13 commits (o slug só existia em trailers de mensagem; nenhum arquivo tracked o continha — verificado por grep na árvore e na história).\n- Verificação pós-rewrite: `git log --all --format=%B | grep -ci arranjo` = **0** (no remote reescrito e no clone local re-ancorado).\n- SHAs mudaram em todos os branches (`main` 5bbe97e→794569f; force-update também em build/walking-skeleton, work/add-license, work/add-readme — leftovers de PRs já mergeados, candidatos a deleção). Links de commit em PRs antigos apontam para órfãos — residual aceito: os SHAs antigos só circularam na fase privada; o GitHub não expõe órfãos sem o SHA em mãos.\n\nExecutado pré-flip deliberadamente — o único momento em que a reescrita é barata (zero clones externos). **O gate único do flip público está discharged**; o flip em si (Settings → public) fica como ato do operador, e destrava o iris#5.",
+          "created_at": "2026-08-14T13:13:20Z"
+        }
+      ]
+    },
+    {
+      "ref": "5",
+      "title": "Public packaging metadata in pyproject.toml",
+      "body": "Antes de publicar: `readme`, `license`, classifiers, `project.urls`, author. Depende de: LICENSE escolhida + README existir.\n\nTrigger-source: the public flip act (repo Settings → public; GTD ^fl1p26) — packaging metadata is publish-time. All pre-flip prerequisites landed: LICENSE (#17 merged), README (2026-08-12), and the operator-personal-block rider (stripped/closed via PR #25). Only the operator-timed flip itself remains. Fires when the repo is flipped public.",
+      "state": "open",
+      "labels": [
+        "public-flip"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/5",
+      "created_at": "2026-08-11T11:04:23Z",
+      "updated_at": "2026-09-05T21:52:59Z",
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "depends on #3 (LICENSE) + #4 (README) — both must land before this packaging metadata; #6 (scrub decision) is a sibling pre-flip gate",
+          "created_at": "2026-08-12T09:21:51Z"
+        },
+        {
+          "author": "fppfurtado",
+          "body": "#19 fechado (PR#25, strip do bloco ritual) — a referência 'same gate as #19' do locus é histórica agora. #5 segue PARKED no ato do flip em si (^fl1p26); repo ainda PRIVATE. Sub-parte resolvida, trigger próprio de #5 inalterado.",
+          "created_at": "2026-09-04T20:33:44Z"
+        }
+      ]
+    },
+    {
+      "ref": "4",
+      "title": "Add README.md (public entry doc)",
+      "body": "O doc de entrada público na raiz, distinto do `AGENTS.md`. Deve documentar: o que é iris (agent-context layer read-only), install, e **config discovery** (precedência `IRIS_CONFIG` → `./sources.toml` → `~/.config/iris/sources.toml`, implementada em PR #2).",
+      "state": "closed",
+      "labels": [
+        "documentation",
+        "public-flip"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/4",
+      "created_at": "2026-08-11T11:04:20Z",
+      "updated_at": "2026-08-12T10:13:07Z",
+      "closed_at": "2026-08-12T10:13:07Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "blocks #5 (packaging metadata needs README to exist); relates to the #3/#5/#6 public-flip cluster",
+          "created_at": "2026-08-12T09:21:57Z"
+        }
+      ]
+    },
+    {
+      "ref": "3",
+      "title": "Add a LICENSE",
+      "body": "Escolha do operador. Requerido antes de qualquer publicação pública. Bloqueia o packaging metadata (`license` em pyproject) e o flip.",
+      "state": "closed",
+      "labels": [
+        "documentation",
+        "public-flip"
+      ],
+      "url": "https://github.com/fppfurtado/iris/issues/3",
+      "created_at": "2026-08-11T11:04:18Z",
+      "updated_at": "2026-08-12T10:56:05Z",
+      "closed_at": "2026-08-12T10:56:05Z",
+      "comments": [
+        {
+          "author": "fppfurtado",
+          "body": "blocks #5 (packaging metadata: the pyproject `license` field) and the public flip",
+          "created_at": "2026-08-12T09:21:54Z"
+        }
+      ]
+    }
+  ]
+}
