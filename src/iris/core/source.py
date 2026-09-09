@@ -19,6 +19,13 @@ from iris.core.model import GroundHit, Node, Relation
 # by validated need, not ahead of one).
 KIND_NODES = "nodes"
 KIND_HITS = "hits"
+# The referenced-node kind (F6-mínimo, iris#43): a caller (``chain``) consuming the LIVE state of the
+# SPECIFIC nodes a work item references — ``<repo>#<n>`` issues (incl. CLOSED) and ``^<id>`` anchors
+# (incl. done) — as opposed to ``KIND_NODES``, the open satellites grouped under a repo. A source that
+# can resolve specific refs declares it in ``produces`` and, when a query asks for it, fetches by ref
+# (state-carrying) rather than listing the open set. Kind-aware federation (BR07) then routes a
+# ``chain`` query only to sources that can serve it.
+KIND_CHAIN = "chain"
 
 
 @dataclass(frozen=True)

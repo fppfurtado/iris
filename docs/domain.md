@@ -27,9 +27,21 @@ frozen value objects and exposes no write path to any source.
 
 ### Composition
 - **Definition:** deriving a joined, cross-source unit from the federated results (e.g. `repo ⋈ open-issues`,
-  `repo ⋈ referencing-tasks`) — the value iris adds over calling each source directly.
+  `repo ⋈ referencing-tasks`, `item ⋈ referenced-nodes`) — the value iris adds over calling each source
+  directly.
 - **Relations:** operates on a `FederationResult`; the seam rule (BR01) assigns it to iris, not to any source.
 - **Aliases/Synonyms:** the seam; cross-source join.
+
+### ReferencedChain
+- **Definition:** the `item ⋈ referenced-nodes` composition (F6-mínimo, iris#43): the live state of the
+  SPECIFIC nodes a work item's prose references (`<repo>#<n>` issues across repos + `^<id>` anchors),
+  with the OPEN ones marked as data-derived candidate blockers. It has TWO unknown faces, both surfaced
+  as UNKNOWN and never as clear (the failure-mode guard): `unresolved` (a ref that resolved to no node)
+  and `state_unknown` (a resolved node whose state was undetermined) — "nothing blocks" holds only when
+  both are empty.
+- **Relations:** the referencing edge (an item *references* a node) is realized STRUCTURALLY by chain
+  membership, not stored as a `Relation` — the referencing item has no persisted node identity to be a
+  relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).
 
 ### Node
 - **Definition:** a federated entity — a repo, a system, a concept, an issue — with `id`, `kind`, `title`,
@@ -46,7 +58,9 @@ frozen value objects and exposes no write path to any source.
 - **Relations:** the `hits` result-kind; consumed by `ground`.
 
 ### Kind
-- **Definition:** a result-kind label declaring what a source emits / a caller consumes (`nodes`, `hits`).
+- **Definition:** a result-kind label declaring what a source emits / a caller consumes (`nodes`, `hits`,
+  `chain`). `chain` = the live state of the SPECIFIC nodes an item references (issues incl. closed,
+  anchors incl. done), distinct from `nodes` (a repo's open satellites).
 - **Relations:** drives kind-aware federation (BR07) — a source producing none of a query's kinds is skipped.
 
 ### Identity
@@ -61,15 +75,19 @@ frozen value objects and exposes no write path to any source.
 
 ### Issue
 - **Parent:** Node (`kind="issue"`).
-- **Definition:** an open tracker issue from a forge (gh/glab), bound to its repo by a `has-open-issue`
-  Relation. Only OPEN issues are modeled.
+- **Definition:** a tracker issue from a forge (gh/glab). In a `context` read only OPEN issues are
+  modeled, bound to a repo by a `has-open-issue` Relation. In a `chain` read (F6-mínimo, iris#43) a
+  SPECIFICALLY-REFERENCED issue is modeled regardless of state, carrying its lifecycle state
+  (`roles=["open"]` | `["closed"]`) — closed matters there (a discharged gate in a dependency chain).
 
 ### Task
 - **Parent:** Node (`kind="task"`).
-- **Definition:** an open task-list item (a GTD/next-action) from a knowledge base, bound to each repo it
-  names by a `has-task` Relation. Repo linkage is not a store field — it is derived from the
-  `<repo>#<number>` references in the task's text (BR06: identity, not a carried key). A task naming no repo
-  carries no relation and stays outside the join. Only OPEN tasks are modeled.
+- **Definition:** a task-list item (a GTD/next-action) from a knowledge base. In a `context` read only
+  OPEN tasks are modeled, bound to each repo they name by a `has-task` Relation — repo linkage is not a
+  store field but derived from the `<repo>#<number>` references in the task's text (BR06: identity, not a
+  carried key); a task naming no repo stays outside the join. In a `chain` read a SPECIFICALLY-REFERENCED
+  anchor (`^<id>`) is resolved regardless of state, carrying its lifecycle state (`roles=["open"]` |
+  `["done"]`).
 
 ## Aggregates and Entities
 

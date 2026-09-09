@@ -96,5 +96,64 @@ def test_task_without_id_is_skipped():
     assert [n.id for n in res.nodes] == ["ok"]
 
 
-def test_produces_is_nodes_only():
-    assert TasksSource("gtd").produces == frozenset({KIND_NODES})
+def test_produces_nodes_and_chain():
+    from iris.core.source import KIND_CHAIN
+
+    assert TasksSource("gtd").produces == frozenset({KIND_NODES, KIND_CHAIN})
+
+
+# --- F6-T3: chain mode — resolve specific ^anchor to its state (open/done) ---------------------
+
+from iris.core.source import KIND_CHAIN  # noqa: E402
+
+_OPEN = '[{"id": "dogfd1", "text": "review dogfood [DOGFOOD-GATE] gate:dogfood"}, {"id": "other", "text": "x"}]'
+_DONE = '[{"id": "mn297done", "text": "mneme open — landed"}]'
+
+
+def test_chain_resolves_open_anchor_with_gate_text_captured():
+    def runner(cmd):
+        return _OPEN
+
+    src = TasksSource("gtd", {"command": ["mneme", "task", "list", "--status", "open", "--json"]}, runner=runner)
+    res = src.read(Query(text="blocked on ^dogfd1", kinds=frozenset({KIND_CHAIN})))
+
+    assert res.ok
+    assert [n.id for n in res.nodes] == ["dogfd1"]  # only the referenced anchor, not the whole queue
+    node = res.nodes[0]
+    assert node.kind == "task" and node.roles == ["open"]
+    assert "gate:dogfood" in node.title  # the gate marker is captured (in the task text)
+
+
+def test_chain_resolves_done_anchor_via_done_command():
+    def runner(cmd):
+        return _DONE if "done" in cmd else _OPEN
+
+    src = TasksSource(
+        "gtd",
+        {
+            "command": ["mneme", "task", "list", "--status", "open", "--json"],
+            "done_command": ["mneme", "task", "list", "--status", "done", "--json"],
+        },
+        runner=runner,
+    )
+    res = src.read(Query(text="see ^mn297done", kinds=frozenset({KIND_CHAIN})))
+    assert res.ok and [n.id for n in res.nodes] == ["mn297done"] and res.nodes[0].roles == ["done"]
+
+
+def test_chain_anchor_not_found_is_not_emitted():
+    # An anchor in neither list -> no node (the composer marks it unresolved/unknown).
+    def runner(cmd):
+        return _OPEN
+
+    src = TasksSource("gtd", {"command": ["mneme", "task", "list", "--json"]}, runner=runner)
+    res = src.read(Query(text="ref ^ghost1", kinds=frozenset({KIND_CHAIN})))
+    assert res.ok and res.nodes == []
+
+
+def test_chain_degrades_failing_list_without_sinking():
+    def runner(cmd):
+        raise RuntimeError("mneme: store missing")
+
+    src = TasksSource("gtd", {"command": ["mneme", "task", "list", "--json"]}, runner=runner)
+    res = src.read(Query(text="ref ^dogfd1", kinds=frozenset({KIND_CHAIN})))
+    assert not res.ok and "unreadable" in res.note and res.nodes == []

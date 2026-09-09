@@ -11,13 +11,20 @@ dropped), not swallowed. Pure and read-only: it derives on read and persists not
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from iris.core.federation import FederationResult
 from iris.core.model import Node
+from iris.sources._repos import parse_refs
 
 _HAS_OPEN_ISSUE = "has-open-issue"
 _HAS_TASK = "has-task"
+
+# A gate / blocked-by marker written into an item's prose — the data signal that a referenced node is
+# holding the item, beyond the node's own open/closed state. Case-insensitive; conservative (only
+# well-known markers) so ordinary prose is not swept in as a false blocker.
+_GATE_MARKER = re.compile(r"gate:|trigger-source:|blocked[ -]by|-gate\b|gate\]", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -116,3 +123,79 @@ def compose_repo_issues(result: FederationResult) -> Composition:
 def _miss_identities(result: FederationResult, rel_type: str, repo_ids: set[str]) -> list[str]:
     """The sorted distinct identities of ``rel_type`` edges that match no repo node."""
     return sorted({r.from_ for r in result.relations if r.type == rel_type and r.from_ not in repo_ids})
+
+
+# --- F6-mínimo (iris#43): item ⋈ referenced-nodes ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReferencedChain:
+    """The ``item ⋈ referenced-nodes`` composition (F6-mínimo): the live state of the SPECIFIC nodes a
+    work item references, plus which of them are data-derived candidate blockers.
+
+    ``unresolved`` holds the ref strings iris could NOT resolve (fetch failed, or the ref names nothing
+    known) — surfaced as UNKNOWN, never as clear: a non-empty ``unresolved`` means "nothing blocks"
+    cannot be asserted, even with ``blocker_candidates`` empty. ``notes`` carries the federation's
+    per-source degradation notes so the caller can tell a real miss from a source that was down.
+    """
+
+    item: str
+    resolved: list[Node] = field(default_factory=list)
+    unresolved: list[str] = field(default_factory=list)
+    blocker_candidates: list[Node] = field(default_factory=list)
+    # Resolved nodes whose STATE could not be determined (empty roles — e.g. the `view` command's JSON
+    # omitted the state field). Surfaced as UNKNOWN, never as "not blocking": a resolved node with no
+    # known state is a SECOND unknown beside `unresolved`, so "nothing blocks" cannot be asserted while
+    # this is non-empty either (the failure-mode guard, completed).
+    state_unknown: list[Node] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def _is_open(node: Node) -> bool:
+    """A node is a live blocker only while OPEN — a closed issue / done task is discharged, never a
+    candidate. State is carried in ``roles`` by the chain-mode source reads (F6-T2/T3)."""
+    return "open" in {r.lower() for r in node.roles}
+
+
+def is_gate_marked(node: Node) -> bool:
+    """Whether the node's prose carries an explicit gate / blocked-by marker (a data signal for
+    presentation emphasis — the operative blocker signal is open-state, this only enriches it)."""
+    return bool(_GATE_MARKER.search(node.title))
+
+
+def compose_referenced_nodes(item_text: str, result: FederationResult) -> ReferencedChain:
+    """Join each ref parsed from ``item_text`` to the live node the sources resolved for it.
+
+    An issue ref ``<slug>#<n>`` matches node id ``<slug>#<n>``; an anchor ref ``^<id>`` matches node id
+    ``<id>``. A ref with no matching node is UNRESOLVED (unknown). A resolved node that is OPEN is a
+    candidate blocker (a discharged closed/done node is not) — the data-derived signal; the final
+    judgement is the consumer's (BR01/BR03: iris composes and marks, it does not decide).
+    """
+    by_id = {n.id: n for n in result.nodes}
+    resolved: list[Node] = []
+    unresolved: list[str] = []
+    blocker_candidates: list[Node] = []
+    state_unknown: list[Node] = []
+    for ref in parse_refs(item_text):
+        node_id = f"{ref.slug}#{ref.number}" if ref.kind == "issue" else str(ref.anchor)
+        display = node_id if ref.kind == "issue" else f"^{node_id}"
+        node = by_id.get(node_id)
+        if node is None:
+            if display not in unresolved:
+                unresolved.append(display)
+            continue
+        if node not in resolved:
+            resolved.append(node)
+            if not node.roles:
+                # Resolved, but state undetermined — UNKNOWN, never silently "not blocking".
+                state_unknown.append(node)
+            elif _is_open(node):
+                blocker_candidates.append(node)
+    return ReferencedChain(
+        item=item_text,
+        resolved=resolved,
+        unresolved=unresolved,
+        blocker_candidates=blocker_candidates,
+        state_unknown=state_unknown,
+        notes=list(result.notes),
+    )

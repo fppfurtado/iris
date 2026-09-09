@@ -9,7 +9,7 @@ from iris.cli import app
 
 runner = CliRunner()
 
-READ_ONLY_COMMANDS = {"repos", "ground", "context"}
+READ_ONLY_COMMANDS = {"repos", "ground", "context", "chain"}
 # Verbs whose presence as a command would signal a mutation surface.
 MUTATION_VERBS = {
     "add", "create", "update", "delete", "remove", "write",

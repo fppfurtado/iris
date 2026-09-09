@@ -100,7 +100,27 @@ See [`sources.example.toml`](sources.example.toml) for the annotated reference.
 iris repos [--tag <tag>]      # list repos with their tags/roles (optionally filtered)
 iris ground "<query>"         # ground a query across federated sources
 iris context "<task>"         # assemble the integral context relevant to a task
+iris chain "<item text>"      # resolve a work item's cross-repo dependency chain in one shot
 ```
+
+`chain` parses the `<repo>#<n>` and `^<anchor>` references in a work item's prose, fetches each
+referenced node's **live state across the repos** (issues incl. closed, anchors incl. done), and
+surfaces the OPEN ones as **candidate blockers** — you judge the actual blocker. Refs it cannot resolve
+are shown as **UNKNOWN**, never folded into "clear":
+
+```
+## candidate blockers (OPEN — you judge the actual blocker)
+  - ^dogfd1  review dogfood…  [gate]
+  - iris#5  public flip
+## resolved (not blocking)
+  - iris#6  [closed]  min scrub
+## unknown — could NOT resolve (not confirmed clear)
+  - agent-kit#1464
+```
+
+`chain` needs the `tracker` source to declare a per-issue `view` command (fetching one issue by number
+incl. its state) and, to resolve *done* anchors, the `tasks` source to declare a `done_command` — see
+[`sources.example.toml`](sources.example.toml).
 
 `context` **synthesizes** rather than juxtaposes: when a `tracker` source is declared, it joins each
 repo with its **open issues** (a genuine cross-source composition — the repo comes from one source, its
@@ -125,6 +145,7 @@ clean for piping.
 - tool **`ground(query)`** — ground a query across federated sources
 - tool **`repos(tag?)`** — list repos with tags/roles
 - tool **`context(task)`** — repos ⋈ their open issues plus grounding (the same composed join the CLI renders)
+- tool **`chain(item)`** — a work item ⋈ its referenced nodes' live state, with candidate blockers and a distinct `unknown_unresolved` (the same composition the CLI renders)
 - resource **`iris://nodes`** — all federated nodes (read-only enumerable)
 
 Point your MCP-capable agent at the `iris-mcp` command. Example client config:

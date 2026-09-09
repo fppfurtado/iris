@@ -7,9 +7,10 @@ import typer
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
 from iris._present import relevant_repos
-from iris.core.compose import compose_repo_issues
+from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import FederationResult, federate
-from iris.core.source import KIND_HITS, KIND_NODES, Query
+from iris.core.model import Node
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, Query
 from iris.telemetry import log_request
 
 app = typer.Typer(
@@ -122,6 +123,68 @@ def context(task: str = typer.Argument(..., help="The task to assemble context f
         extra={
             "unmatched_issues": len(composed.unmatched),
             "unmatched_tasks": len(composed.unmatched_tasks),
+        },
+    )
+
+
+def _ref_label(node: Node) -> str:
+    """Display a node by its reference form — ``^<id>`` for an anchor task, ``<slug>#<n>`` for an issue."""
+    return f"^{node.id}" if node.kind == "task" else node.id
+
+
+@app.command()
+def chain(item: str = typer.Argument(..., help="A work item's text (it carries `token#N` / `^anchor` refs).")) -> None:
+    """Resolve a work item's cross-repo dependency chain in one shot (read-only).
+
+    Parses the `<repo>#<n>` and `^<anchor>` refs in the item's prose, fetches each referenced node's
+    LIVE state across the repos, and surfaces the OPEN ones as data-derived candidate blockers — YOU
+    judge the actual blocker. Refs it cannot resolve are shown as UNKNOWN, never folded into 'clear'.
+    """
+    config = _load_config()
+    result = federate(config, Query(text=item, kinds=frozenset({KIND_CHAIN})))
+    composed = compose_referenced_nodes(item, result)
+
+    if composed.blocker_candidates:
+        typer.echo("## candidate blockers (OPEN — you judge the actual blocker)")
+        for node in composed.blocker_candidates:
+            mark = "  [gate]" if is_gate_marked(node) else ""
+            typer.echo(f"  - {_ref_label(node)}  {_oneline(node.title)}{mark}")
+    skip_ids = {id(n) for n in composed.blocker_candidates} | {id(n) for n in composed.state_unknown}
+    nonblockers = [n for n in composed.resolved if id(n) not in skip_ids]
+    if nonblockers:
+        typer.echo("## resolved (not blocking)")
+        for node in nonblockers:
+            typer.echo(f"  - {_ref_label(node)}  [{'/'.join(node.roles)}]  {_oneline(node.title)}")
+    if composed.state_unknown:
+        typer.echo("## unknown state — resolved but state undetermined (not confirmed clear)")
+        for node in composed.state_unknown:
+            typer.echo(f"  - {_ref_label(node)}  {_oneline(node.title)}")
+    if composed.unresolved:
+        typer.echo("## unknown — could NOT resolve (not confirmed clear)")
+        for ref in composed.unresolved:
+            typer.echo(f"  - {ref}")
+    # Failure-mode guard: only claim no-open-blockers when NOTHING is unknown (neither unresolved refs
+    # nor resolved-but-stateless nodes).
+    if (
+        composed.resolved
+        and not composed.blocker_candidates
+        and not composed.unresolved
+        and not composed.state_unknown
+    ):
+        typer.echo("## no open blockers among the resolved refs")
+    if not composed.resolved and not composed.unresolved:
+        typer.echo("# no refs found in the item text", err=True)
+
+    _emit_notes(result)
+    log_request(
+        "chain",
+        item,
+        hits=0,
+        nodes=len(composed.resolved),
+        sources=_source_names(config),
+        extra={
+            "blocker_candidates": len(composed.blocker_candidates),
+            "unresolved": len(composed.unresolved),
         },
     )
 
