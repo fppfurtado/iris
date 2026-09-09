@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 _SECTION = re.compile(r"(?m)^\[(?P<name>[^\]]+)\]\s*$")
@@ -22,7 +23,28 @@ _NON_REPO_SECTIONS = {"DEFAULT", "ALIAS"}
 # uppercase-acronym noise ("PR#25", "P1#3", "GLPI#7") a bare letter-start would sweep in — those are
 # prose, not repos. Whether a surviving slug is a REAL repo is the caller's resolution, not this
 # extraction's (the composer resolves identity for tasks; the tracker matches it against the registry).
-_REPO_REF = re.compile(r"(?<![A-Za-z0-9_#])([a-z][a-z0-9._-]*)#\d+")
+# The number is captured (group 2) for the specific-issue join (F6-mínimo); ``repo_refs`` still keys on
+# the slug alone, so its existing callers are unaffected.
+_REPO_REF = re.compile(r"(?<![A-Za-z0-9_#])([a-z][a-z0-9._-]*)#(\d+)")
+
+# A ``^<anchor>`` reference — a list/GTD block id in the knowledge base (e.g. ``^dogfd1``). Lowercase
+# alphanumeric, and the ``^`` must not sit inside a word (``a^b`` is not a ref), mirroring the
+# repo-ref's own boundary discipline. The within-store companion of the cross-repo ``token#N`` ref.
+_ANCHOR_REF = re.compile(r"(?<![A-Za-z0-9^])\^([a-z0-9]+)")
+
+
+@dataclass(frozen=True)
+class Ref:
+    """A reference parsed from a work item's prose — the join key of the F6-mínimo chain.
+
+    ``kind="issue"`` carries ``slug`` + ``number`` (a cross-repo ``<repo>#<n>``); ``kind="anchor"``
+    carries ``anchor`` (a within-store ``^<id>``). Exactly one shape is populated per kind.
+    """
+
+    kind: str  # "issue" | "anchor"
+    slug: str | None = None  # issue: the repo slug
+    number: int | None = None  # issue: the issue number
+    anchor: str | None = None  # anchor: the block id (without the leading ``^``)
 
 
 def repo_refs(text: str) -> list[str]:
@@ -33,6 +55,28 @@ def repo_refs(text: str) -> list[str]:
     SAME rule rather than two coincidentally-aligned regexes (Brief F6: identity is derived, not luck).
     """
     return list(dict.fromkeys(m.group(1) for m in _REPO_REF.finditer(text)))
+
+
+def parse_refs(text: str) -> list[Ref]:
+    """Every reference in ``text`` — cross-repo ``<repo>#<n>`` issues AND within-store ``^<id>``
+    anchors — as typed :class:`Ref`s in first-seen (text-position) order, deduplicated.
+
+    The ref parser for the F6-mínimo chain (Brief J1): unlike ``repo_refs`` it PRESERVES the issue
+    number (the specific-issue join key, not the repo-scope key) and additionally captures anchors.
+    """
+    matches: list[tuple[int, Ref]] = []
+    for m in _REPO_REF.finditer(text):
+        matches.append((m.start(), Ref(kind="issue", slug=m.group(1), number=int(m.group(2)))))
+    for m in _ANCHOR_REF.finditer(text):
+        matches.append((m.start(), Ref(kind="anchor", anchor=m.group(1))))
+    matches.sort(key=lambda pair: pair[0])
+    ordered: list[Ref] = []
+    seen: set[Ref] = set()
+    for _, ref in matches:
+        if ref not in seen:
+            seen.add(ref)
+            ordered.append(ref)
+    return ordered
 
 
 def repo_paths(mrconfig: Path) -> list[Path]:
