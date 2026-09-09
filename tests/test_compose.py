@@ -100,3 +100,58 @@ def test_task_referencing_unknown_repo_surfaces_as_unmatched():
     assert [n.id for n in comp.unmatched_tasks] == ["gh"]
     note = next(n for n in comp.notes if "outside the constellation" in n)
     assert "ghost" in note
+
+
+# --- F6-T4: compose_referenced_nodes — item ⋈ referenced-nodes + data-derived blocker marking ---
+
+from iris.core.compose import ReferencedChain, compose_referenced_nodes, is_gate_marked  # noqa: E402
+from iris.core.federation import FederationResult  # noqa: E402
+from iris.core.model import Node  # noqa: E402
+
+
+def _chain_result():
+    return FederationResult(
+        nodes=[
+            Node(id="iris#6", kind="issue", title="min scrub", roles=["closed"]),
+            Node(id="iris#5", kind="issue", title="public flip", roles=["open"]),
+            Node(id="dogfd1", kind="task", title="review dogfood gate:dogfood", roles=["open"]),
+        ]
+    )
+
+
+def test_marks_open_refs_as_blockers_closed_as_resolved_nonblocker():
+    item = "flip gated on iris#6, ^dogfd1 and iris#5"
+    chain = compose_referenced_nodes(item, _chain_result())
+
+    assert isinstance(chain, ReferencedChain)
+    assert {n.id for n in chain.resolved} == {"iris#6", "iris#5", "dogfd1"}
+    # iris#6 CLOSED -> discharged, NOT a blocker; ^dogfd1 + iris#5 OPEN -> candidate blockers
+    assert {n.id for n in chain.blocker_candidates} == {"dogfd1", "iris#5"}
+    assert "iris#6" not in {n.id for n in chain.blocker_candidates}
+    assert chain.unresolved == []
+
+
+def test_unresolved_ref_is_unknown_not_clear():
+    # iris#99 resolves to no node (fetch failed / unknown). Even with the other refs closed, a
+    # non-empty unresolved means "nothing blocks" cannot be asserted (the failure-mode guard).
+    result = FederationResult(
+        nodes=[Node(id="iris#6", kind="issue", title="done", roles=["closed"])],
+        notes=["tracker: chain: 1 ref(s) unreadable"],
+    )
+    chain = compose_referenced_nodes("iris#6 and iris#99", result)
+    assert chain.blocker_candidates == []  # no KNOWN blocker...
+    assert chain.unresolved == ["iris#99"]  # ...but an UNKNOWN ref remains -> not 'clear'
+    assert any("unreadable" in n for n in chain.notes)
+
+
+def test_gate_marker_detected_for_presentation_emphasis():
+    node = Node(id="dogfd1", kind="task", title="[DOGFOOD-GATE] review; Trigger-source: X", roles=["open"])
+    assert is_gate_marked(node)
+    assert not is_gate_marked(Node(id="x", kind="task", title="ordinary task", roles=["open"]))
+
+
+def test_dedups_repeated_refs():
+    item = "iris#5 blocks and again iris#5"
+    chain = compose_referenced_nodes(item, _chain_result())
+    assert [n.id for n in chain.resolved] == ["iris#5"]
+    assert [n.id for n in chain.blocker_candidates] == ["iris#5"]

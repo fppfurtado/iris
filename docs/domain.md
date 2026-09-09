@@ -27,9 +27,19 @@ frozen value objects and exposes no write path to any source.
 
 ### Composition
 - **Definition:** deriving a joined, cross-source unit from the federated results (e.g. `repo ⋈ open-issues`,
-  `repo ⋈ referencing-tasks`) — the value iris adds over calling each source directly.
+  `repo ⋈ referencing-tasks`, `item ⋈ referenced-nodes`) — the value iris adds over calling each source
+  directly.
 - **Relations:** operates on a `FederationResult`; the seam rule (BR01) assigns it to iris, not to any source.
 - **Aliases/Synonyms:** the seam; cross-source join.
+
+### ReferencedChain
+- **Definition:** the `item ⋈ referenced-nodes` composition (F6-mínimo, iris#43): the live state of the
+  SPECIFIC nodes a work item's prose references (`<repo>#<n>` issues across repos + `^<id>` anchors),
+  with the OPEN ones marked as data-derived candidate blockers. `unresolved` refs are surfaced as
+  UNKNOWN (never as clear — the failure-mode guard).
+- **Relations:** the referencing edge (an item *references* a node) is realized STRUCTURALLY by chain
+  membership, not stored as a `Relation` — the referencing item has no persisted node identity to be a
+  relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).
 
 ### Node
 - **Definition:** a federated entity — a repo, a system, a concept, an issue — with `id`, `kind`, `title`,
