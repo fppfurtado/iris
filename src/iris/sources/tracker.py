@@ -28,9 +28,9 @@ from typing import Callable
 
 from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
-from iris.core.source import KIND_NODES, Query, Source, SourceResult
+from iris.core.source import KIND_CHAIN, KIND_NODES, Query, Source, SourceResult
 from iris.sources._json import dig
-from iris.sources._repos import identity, repo_paths, repo_refs
+from iris.sources._repos import identity, parse_refs, repo_paths, repo_refs
 
 # A runner takes the forge argv and the repo checkout to run it in, and returns stdout.
 Runner = Callable[[list[str], Path], str]
@@ -55,9 +55,10 @@ def _make_default_runner(timeout: float) -> Runner:
 class TrackerSource:
     """A read-only source over a forge issue-list CLI, one invocation per repo checkout."""
 
-    # Emits the node graph (issue nodes + repo->issue relations); no hits. A hits-only query
-    # (e.g. ``ground``) skips it — no forge subprocess spawned for a discarded read.
-    produces = frozenset({KIND_NODES})
+    # Emits the node graph (issue nodes + repo->issue relations) for ``context``, AND referenced-issue
+    # state for ``chain`` (KIND_CHAIN). No hits: a hits-only query (e.g. ``ground``) skips it — no forge
+    # subprocess spawned for a discarded read.
+    produces = frozenset({KIND_NODES, KIND_CHAIN})
 
     def __init__(self, name: str, options: dict | None = None, runner: Runner | None = None) -> None:
         opts = options or {}
@@ -66,10 +67,23 @@ class TrackerSource:
         self._runner = runner if runner is not None else _make_default_runner(self._timeout)
         self._mrconfig = opts.get("mrconfig", "~/.mrconfig")
         self._command: list[str] = list(opts.get("command", []))
+        # The per-issue VIEW command (F6-mínimo chain mode): fetches ONE issue by number incl. its
+        # state (open/closed), source-agnostic via `{number}` substitution — e.g.
+        # ["gh", "issue", "view", "{number}", "--json", "number,title,state"]. Absent → chain mode
+        # degrades to a note (BR04), leaving ``context`` (the list command) untouched.
+        self._view: list[str] = list(opts.get("view", []))
         self._items_path: str = opts.get("items", "")
         self._map: dict[str, str] = dict(opts.get("map", {}))
 
     def read(self, query: Query) -> SourceResult:
+        # Kind-aware mode split (BR07): a ``chain`` query wants the LIVE state of the SPECIFIC issues an
+        # item references (incl. CLOSED) — a different read than ``context``'s list of a repo's OPEN
+        # issues. Route by the consumed kind; ``context``/bare reads keep the existing list path.
+        if query.kinds is not None and KIND_CHAIN in query.kinds:
+            return self._read_referenced(query)
+        return self._read_open(query)
+
+    def _read_open(self, query: Query) -> SourceResult:
         # Scoped by construction (iris#36): the tracker spawns a forge CLI only for the repos the query
         # NAMES as `<repo>#<n>`, not the whole registry. A query naming none — a bare `context`, or the
         # `repos`/`ground` reads that carry no task text — derives zero targets and returns empty with
@@ -122,6 +136,51 @@ class TrackerSource:
             note = f"{failed}/{len(repos)} repos unreadable (forge absent/unauth/timeout/unexpected-shape)"
             ok = False
         return SourceResult(nodes=nodes, relations=relations, ok=ok, note=note)
+
+    def _read_referenced(self, query: Query) -> SourceResult:
+        """Chain mode (F6-mínimo): fetch the LIVE state of each SPECIFIC ``<repo>#<n>`` the query names.
+
+        Unlike ``_read_open`` this resolves refs to individual issues via the per-issue ``view`` command
+        (state incl. CLOSED, carried in ``roles``). A ref whose fetch fails degrades that ref into a
+        note (BR04) — the chain composer surfaces it as unresolved/unknown, never as clear.
+        """
+        refs = [r for r in parse_refs(query.text) if r.kind == "issue"]
+        if not refs:
+            return SourceResult(ok=True)
+        if not self._view:
+            return SourceResult(ok=False, note="chain: no `view` command configured (BR04)")
+        mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
+        try:
+            paths = {identity(p): p for p in repo_paths(mrconfig)}
+        except OSError as exc:
+            return SourceResult(ok=False, note=f"cannot read mrconfig ({exc})")
+        nodes: list[Node] = []
+        failed = 0
+        for ref in refs:
+            repo = paths.get(ref.slug)
+            if repo is None:
+                continue  # a ref to a repo outside the registry — the composer marks it unresolved
+            cmd = [arg.replace("{number}", str(ref.number)) for arg in self._view]
+            try:
+                data = json.loads(self._runner(cmd, repo))
+            except Exception:  # per-ref isolation: absent/unauth/timeout/bad-JSON degrades this ref
+                failed += 1
+                continue
+            if not isinstance(data, dict):
+                failed += 1
+                continue
+            state = str(dig(data, self._map.get("state", "state")) or "").lower()
+            nodes.append(
+                Node(
+                    id=f"{ref.slug}#{ref.number}",
+                    kind="issue",
+                    title=str(dig(data, self._map.get("title", "title")) or ""),
+                    roles=[state] if state else [],
+                    source=self.name,
+                )
+            )
+        note = f"chain: {failed} ref(s) unreadable (forge absent/unauth/timeout)" if failed else ""
+        return SourceResult(nodes=nodes, ok=not failed, note=note)
 
 
 def _factory(name: str, options: dict) -> Source:

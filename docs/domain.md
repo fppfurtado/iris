@@ -46,7 +46,9 @@ frozen value objects and exposes no write path to any source.
 - **Relations:** the `hits` result-kind; consumed by `ground`.
 
 ### Kind
-- **Definition:** a result-kind label declaring what a source emits / a caller consumes (`nodes`, `hits`).
+- **Definition:** a result-kind label declaring what a source emits / a caller consumes (`nodes`, `hits`,
+  `chain`). `chain` = the live state of the SPECIFIC nodes an item references (issues incl. closed,
+  anchors incl. done), distinct from `nodes` (a repo's open satellites).
 - **Relations:** drives kind-aware federation (BR07) — a source producing none of a query's kinds is skipped.
 
 ### Identity
@@ -61,8 +63,10 @@ frozen value objects and exposes no write path to any source.
 
 ### Issue
 - **Parent:** Node (`kind="issue"`).
-- **Definition:** an open tracker issue from a forge (gh/glab), bound to its repo by a `has-open-issue`
-  Relation. Only OPEN issues are modeled.
+- **Definition:** a tracker issue from a forge (gh/glab). In a `context` read only OPEN issues are
+  modeled, bound to a repo by a `has-open-issue` Relation. In a `chain` read (F6-mínimo, iris#43) a
+  SPECIFICALLY-REFERENCED issue is modeled regardless of state, carrying its lifecycle state
+  (`roles=["open"]` | `["closed"]`) — closed matters there (a discharged gate in a dependency chain).
 
 ### Task
 - **Parent:** Node (`kind="task"`).

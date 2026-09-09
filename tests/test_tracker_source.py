@@ -111,8 +111,10 @@ def test_issue_without_number_is_skipped(tmp_path):
     assert [n.id for n in res.nodes] == ["alpha#2"]  # the numberless issue is skipped, not `alpha#None`
 
 
-def test_produces_is_nodes_only():
-    assert TrackerSource("tracker").produces == frozenset({KIND_NODES})
+def test_produces_nodes_and_chain():
+    # The tracker serves both `context` (KIND_NODES, open satellites) and `chain` (KIND_CHAIN,
+    # referenced-issue state) — never hits (a `ground` query still skips it).
+    assert TrackerSource("tracker").produces == frozenset({KIND_NODES, KIND_CHAIN})
 
 
 # --- iris#36: the fan-out is scoped to the repos the query names ---
@@ -183,3 +185,86 @@ def test_cited_repo_absent_from_registry_is_silently_empty(tmp_path):
     res = src.read(Query(text="work on stranger#5", kinds=frozenset({KIND_NODES})))
 
     assert res.ok and res.nodes == [] and calls == []
+
+
+# --- F6-T2: chain mode — specific-issue fetch incl. CLOSED state -------------------------------
+
+from iris.core.source import KIND_CHAIN  # noqa: E402
+
+_VIEW = ["gh", "issue", "view", "{number}", "--json", "number,title,state"]
+
+
+def test_chain_mode_fetches_specific_issue_incl_closed_state(tmp_path):
+    cfg, _ = _mrconfig(tmp_path, "iris", "mneme")
+    calls: list[tuple[str, str]] = []
+
+    def runner(cmd, cwd):
+        calls.append((Path(cwd).name, cmd[3]))  # (repo, substituted number)
+        if Path(cwd).name == "iris" and cmd[3] == "6":
+            return '{"number": 6, "title": "min scrub", "state": "CLOSED"}'
+        if Path(cwd).name == "iris" and cmd[3] == "5":
+            return '{"number": 5, "title": "public flip", "state": "OPEN"}'
+        return '{"number": 297, "title": "mneme open", "state": "CLOSED"}'
+
+    src = TrackerSource(
+        "tracker", {"mrconfig": str(cfg), "view": _VIEW, "map": {"state": "state"}}, runner=runner
+    )
+    res = src.read(Query(text="chain iris#6 iris#5 mneme#297", kinds=frozenset({KIND_CHAIN})))
+
+    assert res.ok
+    by_id = {n.id: n for n in res.nodes}
+    assert by_id["iris#6"].roles == ["closed"]  # CLOSED is carried (list-open would never surface it)
+    assert by_id["iris#5"].roles == ["open"]
+    assert by_id["mneme#297"].roles == ["closed"]
+    assert by_id["iris#6"].title == "min scrub"
+    # one view call per specific ref, number substituted, in the ref's own repo checkout
+    assert sorted(calls) == [("iris", "5"), ("iris", "6"), ("mneme", "297")]
+
+
+def test_chain_mode_degrades_failing_ref_without_sinking(tmp_path):
+    cfg, _ = _mrconfig(tmp_path, "iris")
+
+    def runner(cmd, cwd):
+        if cmd[3] == "6":
+            raise RuntimeError("gh: not authenticated")
+        return '{"number": 5, "title": "ok", "state": "OPEN"}'
+
+    src = TrackerSource("tracker", {"mrconfig": str(cfg), "view": _VIEW}, runner=runner)
+    res = src.read(Query(text="chain iris#6 and iris#5", kinds=frozenset({KIND_CHAIN})))
+
+    assert not res.ok
+    assert "1 ref(s) unreadable" in res.note
+    assert [n.id for n in res.nodes] == ["iris#5"]  # the healthy ref still resolved; #6 -> unresolved
+
+
+def test_chain_mode_without_view_command_degrades(tmp_path):
+    cfg, _ = _mrconfig(tmp_path, "iris")
+    src = TrackerSource("tracker", {"mrconfig": str(cfg), "command": ["gh", "issue", "list"]})
+    res = src.read(Query(text="chain iris#6", kinds=frozenset({KIND_CHAIN})))
+    assert not res.ok and "no `view` command" in res.note and res.nodes == []
+
+
+def test_chain_mode_skips_ref_outside_registry(tmp_path):
+    cfg, _ = _mrconfig(tmp_path, "iris")
+
+    def runner(cmd, cwd):
+        return '{"number": 5, "title": "ok", "state": "OPEN"}'
+
+    src = TrackerSource("tracker", {"mrconfig": str(cfg), "view": _VIEW}, runner=runner)
+    res = src.read(Query(text="chain iris#5 and stranger#9", kinds=frozenset({KIND_CHAIN})))
+    assert res.ok and [n.id for n in res.nodes] == ["iris#5"]  # stranger#9 not in registry -> skipped
+
+
+def test_context_mode_unaffected_by_chain_support(tmp_path):
+    # A context/NODES query still lists open issues (the existing path), not the chain fetch.
+    cfg, _ = _mrconfig(tmp_path, "iris")
+
+    def runner(cmd, cwd):
+        return '[{"number": 1, "title": "open one"}]'
+
+    src = TrackerSource(
+        "tracker", {"mrconfig": str(cfg), "command": ["gh", "issue", "list"], "view": _VIEW}, runner=runner
+    )
+    res = src.read(Query(text="work on iris#1", kinds=frozenset({KIND_NODES})))
+    assert res.ok and [n.id for n in res.nodes] == ["iris#1"]
+    assert any(r.type == "has-open-issue" for r in res.relations)
