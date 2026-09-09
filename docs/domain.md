@@ -35,8 +35,10 @@ frozen value objects and exposes no write path to any source.
 ### ReferencedChain
 - **Definition:** the `item ⋈ referenced-nodes` composition (F6-mínimo, iris#43): the live state of the
   SPECIFIC nodes a work item's prose references (`<repo>#<n>` issues across repos + `^<id>` anchors),
-  with the OPEN ones marked as data-derived candidate blockers. `unresolved` refs are surfaced as
-  UNKNOWN (never as clear — the failure-mode guard).
+  with the OPEN ones marked as data-derived candidate blockers. It has TWO unknown faces, both surfaced
+  as UNKNOWN and never as clear (the failure-mode guard): `unresolved` (a ref that resolved to no node)
+  and `state_unknown` (a resolved node whose state was undetermined) — "nothing blocks" holds only when
+  both are empty.
 - **Relations:** the referencing edge (an item *references* a node) is realized STRUCTURALLY by chain
   membership, not stored as a `Relation` — the referencing item has no persisted node identity to be a
   relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).

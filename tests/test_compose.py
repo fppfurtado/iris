@@ -155,3 +155,15 @@ def test_dedups_repeated_refs():
     chain = compose_referenced_nodes(item, _chain_result())
     assert [n.id for n in chain.resolved] == ["iris#5"]
     assert [n.id for n in chain.blocker_candidates] == ["iris#5"]
+
+
+def test_resolved_but_stateless_node_is_unknown_not_nonblocker():
+    # Finding 1 (review): a resolved node with EMPTY roles (state undetermined, e.g. view JSON omitted
+    # state) must be UNKNOWN, never silently "not blocking".
+    result = FederationResult(nodes=[Node(id="iris#5", kind="issue", title="stateless", roles=[])])
+    chain = compose_referenced_nodes("look at iris#5", result)
+    assert [n.id for n in chain.state_unknown] == ["iris#5"]
+    assert chain.blocker_candidates == []
+    # it is resolved, but NOT among the non-blockers (state is unknown, not known-clear)
+    assert "iris#5" in {n.id for n in chain.resolved}
+    assert chain.state_unknown and not chain.unresolved  # a second unknown face, distinct from unresolved

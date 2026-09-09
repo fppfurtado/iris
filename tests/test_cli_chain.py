@@ -77,3 +77,22 @@ def test_mcp_chain_parity_keeps_unknown_distinct(monkeypatch):
     assert [n["id"] for n in out["resolved_non_blocking"]] == ["iris#6"]
     assert out["unknown_unresolved"] == ["iris#99"]  # distinct key, parity with CLI
     assert any(b["gate_marked"] for b in out["blocker_candidates"])
+
+
+def test_cli_chain_stateless_resolved_is_unknown_state_not_clear(monkeypatch):
+    # Finding 1: a resolved-but-stateless ref goes to the 'unknown state' section, and the
+    # no-open-blockers claim is withheld while it is present.
+    _canned(monkeypatch, cli, [Node(id="iris#5", kind="issue", title="stateless", roles=[])])
+    result = runner.invoke(cli.app, ["chain", "look at iris#5"])
+    assert result.exit_code == 0
+    assert "## unknown state" in result.output
+    assert "iris#5" in result.output
+    assert "no open blockers" not in result.output  # never claim clear while state is unknown
+
+
+def test_mcp_chain_exposes_unknown_state_distinct_key(monkeypatch):
+    _canned(monkeypatch, mcp_adapter, [Node(id="iris#5", kind="issue", title="stateless", roles=[])])
+    out = mcp_adapter.chain.fn("look at iris#5")
+    assert [n["id"] for n in out["unknown_state"]] == ["iris#5"]
+    assert out["blocker_candidates"] == []
+    assert out["resolved_non_blocking"] == []  # not folded into non-blocking

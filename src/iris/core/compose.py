@@ -143,6 +143,11 @@ class ReferencedChain:
     resolved: list[Node] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
     blocker_candidates: list[Node] = field(default_factory=list)
+    # Resolved nodes whose STATE could not be determined (empty roles — e.g. the `view` command's JSON
+    # omitted the state field). Surfaced as UNKNOWN, never as "not blocking": a resolved node with no
+    # known state is a SECOND unknown beside `unresolved`, so "nothing blocks" cannot be asserted while
+    # this is non-empty either (the failure-mode guard, completed).
+    state_unknown: list[Node] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
 
@@ -170,6 +175,7 @@ def compose_referenced_nodes(item_text: str, result: FederationResult) -> Refere
     resolved: list[Node] = []
     unresolved: list[str] = []
     blocker_candidates: list[Node] = []
+    state_unknown: list[Node] = []
     for ref in parse_refs(item_text):
         node_id = f"{ref.slug}#{ref.number}" if ref.kind == "issue" else str(ref.anchor)
         display = node_id if ref.kind == "issue" else f"^{node_id}"
@@ -180,12 +186,16 @@ def compose_referenced_nodes(item_text: str, result: FederationResult) -> Refere
             continue
         if node not in resolved:
             resolved.append(node)
-            if _is_open(node):
+            if not node.roles:
+                # Resolved, but state undetermined — UNKNOWN, never silently "not blocking".
+                state_unknown.append(node)
+            elif _is_open(node):
                 blocker_candidates.append(node)
     return ReferencedChain(
         item=item_text,
         resolved=resolved,
         unresolved=unresolved,
         blocker_candidates=blocker_candidates,
+        state_unknown=state_unknown,
         notes=list(result.notes),
     )

@@ -149,18 +149,28 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
         for node in composed.blocker_candidates:
             mark = "  [gate]" if is_gate_marked(node) else ""
             typer.echo(f"  - {_ref_label(node)}  {_oneline(node.title)}{mark}")
-    nonblockers = [n for n in composed.resolved if n not in composed.blocker_candidates]
+    skip_ids = {id(n) for n in composed.blocker_candidates} | {id(n) for n in composed.state_unknown}
+    nonblockers = [n for n in composed.resolved if id(n) not in skip_ids]
     if nonblockers:
         typer.echo("## resolved (not blocking)")
         for node in nonblockers:
-            state = "/".join(node.roles) if node.roles else "?"
-            typer.echo(f"  - {_ref_label(node)}  [{state}]  {_oneline(node.title)}")
+            typer.echo(f"  - {_ref_label(node)}  [{'/'.join(node.roles)}]  {_oneline(node.title)}")
+    if composed.state_unknown:
+        typer.echo("## unknown state — resolved but state undetermined (not confirmed clear)")
+        for node in composed.state_unknown:
+            typer.echo(f"  - {_ref_label(node)}  {_oneline(node.title)}")
     if composed.unresolved:
         typer.echo("## unknown — could NOT resolve (not confirmed clear)")
         for ref in composed.unresolved:
             typer.echo(f"  - {ref}")
-    # Failure-mode guard: only claim no-open-blockers when nothing is unknown.
-    if composed.resolved and not composed.blocker_candidates and not composed.unresolved:
+    # Failure-mode guard: only claim no-open-blockers when NOTHING is unknown (neither unresolved refs
+    # nor resolved-but-stateless nodes).
+    if (
+        composed.resolved
+        and not composed.blocker_candidates
+        and not composed.unresolved
+        and not composed.state_unknown
+    ):
         typer.echo("## no open blockers among the resolved refs")
     if not composed.resolved and not composed.unresolved:
         typer.echo("# no refs found in the item text", err=True)

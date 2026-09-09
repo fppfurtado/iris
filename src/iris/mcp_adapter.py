@@ -94,7 +94,7 @@ def chain(item: str) -> dict:
     config = active_config()
     result = federate(config, Query(text=item, kinds=frozenset({KIND_CHAIN})))
     composed = compose_referenced_nodes(item, result)
-    blocker_ids = {id(n) for n in composed.blocker_candidates}
+    skip_ids = {id(n) for n in composed.blocker_candidates} | {id(n) for n in composed.state_unknown}
     log_request(
         "chain",
         item,
@@ -112,11 +112,13 @@ def chain(item: str) -> dict:
             {**asdict(n), "gate_marked": is_gate_marked(n)} for n in composed.blocker_candidates
         ],
         "resolved_non_blocking": [
-            asdict(n) for n in composed.resolved if id(n) not in blocker_ids
+            asdict(n) for n in composed.resolved if id(n) not in skip_ids
         ],
-        # UNKNOWN, kept a DISTINCT key — a consumer must never read an empty blocker list as 'clear'
-        # while this is non-empty (the failure-mode guard, in parity with the CLI).
+        # TWO distinct UNKNOWN faces — a consumer must never read an empty blocker list as 'clear'
+        # while EITHER is non-empty (the failure-mode guard, in parity with the CLI): refs that could
+        # not be resolved at all, and refs resolved but whose state was undetermined.
         "unknown_unresolved": list(composed.unresolved),
+        "unknown_state": [asdict(n) for n in composed.state_unknown],
         "notes": composed.notes,
     }
 
