@@ -70,10 +70,12 @@ frozen value objects and exposes no write path to any source.
 
 ### Task
 - **Parent:** Node (`kind="task"`).
-- **Definition:** an open task-list item (a GTD/next-action) from a knowledge base, bound to each repo it
-  names by a `has-task` Relation. Repo linkage is not a store field — it is derived from the
-  `<repo>#<number>` references in the task's text (BR06: identity, not a carried key). A task naming no repo
-  carries no relation and stays outside the join. Only OPEN tasks are modeled.
+- **Definition:** a task-list item (a GTD/next-action) from a knowledge base. In a `context` read only
+  OPEN tasks are modeled, bound to each repo they name by a `has-task` Relation — repo linkage is not a
+  store field but derived from the `<repo>#<number>` references in the task's text (BR06: identity, not a
+  carried key); a task naming no repo stays outside the join. In a `chain` read a SPECIFICALLY-REFERENCED
+  anchor (`^<id>`) is resolved regardless of state, carrying its lifecycle state (`roles=["open"]` |
+  `["done"]`).
 
 ## Aggregates and Entities
 

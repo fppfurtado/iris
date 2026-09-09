@@ -26,9 +26,9 @@ from typing import Callable
 
 from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
-from iris.core.source import KIND_NODES, Query, Source, SourceResult
+from iris.core.source import KIND_CHAIN, KIND_NODES, Query, Source, SourceResult
 from iris.sources._json import dig
-from iris.sources._repos import repo_refs
+from iris.sources._repos import parse_refs, repo_refs
 
 Runner = Callable[[list[str]], str]
 
@@ -53,9 +53,9 @@ def _make_default_runner(timeout: float) -> Runner:
 class TasksSource:
     """A read-only source over a task-list CLI, one invocation for the whole open list."""
 
-    # Emits the node graph (task nodes + repo->task relations); no hits. A hits-only query
-    # (e.g. ``ground``) skips it — no task subprocess spawned for a discarded read.
-    produces = frozenset({KIND_NODES})
+    # Emits the node graph (task nodes + repo->task relations) for ``context``, AND referenced-anchor
+    # state for ``chain`` (KIND_CHAIN). No hits: a hits-only query (e.g. ``ground``) skips it.
+    produces = frozenset({KIND_NODES, KIND_CHAIN})
 
     def __init__(self, name: str, options: dict | None = None, runner: Runner | None = None) -> None:
         opts = options or {}
@@ -63,10 +63,22 @@ class TasksSource:
         self._timeout = float(opts.get("timeout", _DEFAULT_TIMEOUT))
         self._runner = runner if runner is not None else _make_default_runner(self._timeout)
         self._command: list[str] = list(opts.get("command", []))
+        # The DONE-list command (F6-mínimo chain mode): the store lists open by default, so resolving a
+        # referenced anchor that is already DONE needs its own read — e.g.
+        # ["mneme", "task", "list", "--status", "done", "--json"]. Absent → a done anchor stays
+        # unresolved (the composer marks it unknown), while open anchors still resolve from ``command``.
+        self._done_command: list[str] = list(opts.get("done_command", []))
         self._items_path: str = opts.get("items", "")
         self._map: dict[str, str] = dict(opts.get("map", {}))
 
     def read(self, query: Query) -> SourceResult:
+        # Kind-aware mode split (BR07): a ``chain`` query wants the state of the SPECIFIC anchors an
+        # item references (incl. done); ``context``/bare reads keep the whole-open-queue path.
+        if query.kinds is not None and KIND_CHAIN in query.kinds:
+            return self._read_referenced(query)
+        return self._read_open(query)
+
+    def _read_open(self, query: Query) -> SourceResult:
         try:
             data = json.loads(self._runner(list(self._command)))
         except Exception as exc:  # absent/unauth/timeout/bad-JSON degrades this source, never a raise
@@ -91,6 +103,41 @@ class TasksSource:
             for slug in repo_refs(text):
                 relations.append(Relation(from_=slug, type="has-task", to=node_id))
         return SourceResult(nodes=nodes, relations=relations, ok=True)
+
+    def _read_referenced(self, query: Query) -> SourceResult:
+        """Chain mode (F6-mínimo): resolve each SPECIFIC ``^anchor`` the query names to its GTD item,
+        carrying lifecycle state (``roles=["open"]`` | ``["done"]``). An anchor found in neither list is
+        simply not emitted — the chain composer surfaces it as unresolved/unknown, never as clear.
+        """
+        wanted = {r.anchor for r in parse_refs(query.text) if r.kind == "anchor"}
+        if not wanted:
+            return SourceResult(ok=True)
+        nodes: list[Node] = []
+        failed = 0
+        for command, state in ((self._command, "open"), (self._done_command, "done")):
+            if not command:
+                continue
+            try:
+                data = json.loads(self._runner(list(command)))
+            except Exception:  # per-list isolation (BR04): a failing list degrades, never raises
+                failed += 1
+                continue
+            items = dig(data, self._items_path) if self._items_path else data
+            if not isinstance(items, list):
+                failed += 1
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                task_id = dig(item, self._map.get("id", "id"))
+                if task_id is None or str(task_id) not in wanted:
+                    continue
+                text = str(dig(item, self._map.get("title", "text")) or "")
+                # The task text carries any gate/trigger marker; the composer parses it. State is the
+                # list this item came from.
+                nodes.append(Node(id=str(task_id), kind="task", title=text, roles=[state], source=self.name))
+        note = f"chain: {failed} list(s) unreadable" if failed else ""
+        return SourceResult(nodes=nodes, ok=not failed, note=note)
 
 
 def _factory(name: str, options: dict) -> Source:
