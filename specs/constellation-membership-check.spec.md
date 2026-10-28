@@ -1,14 +1,16 @@
 # Spec: constellation membership & drift check — Resources, resource dependencies, explicit universe
 
-- Frozen at: — (withheld, draft)
-- Spec version: — (withheld pending approval)
+- Frozen at: 2026-10-28
+- Spec version: v1
 - Source: iris#48 (requirements 1–4 and its out-of-scope paragraph). The problem framing and the arrangement
   that assigns this capability to iris are upstream of this repo and private; iris#48 restates the
   requirements generically, and this Spec cites them as `Q1`–`Q4` (the issue's numbered items) plus `Q4a`–`Q4f`
   (the six bullets of item 4, in order). **PRD stage skipped** (craft-call, as in this repo's earlier Specs: a
   bounded increment inside an existing product; iris#48 already carries requirement-level content, so a PRD
   would only restate it).
-- Status: DRAFT — freeze pending approval
+- Status: frozen after approval on 2026-10-28 (operator: "Pode congelar"). Pre-freeze reads: one blind read
+  (J5/J6/J3/J1, 4 findings) + two scoped reads of the fix text (4 and 5 findings), all fixed; the last
+  fixes had no reader — accepted by the operator, the build's per-kind fixtures and `review` are the backstop
 - Amendments: none
 
 <!-- Non-normative orientation. Today the constellation source reads the mrconfig and the FIRST document
