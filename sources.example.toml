@@ -10,6 +10,8 @@
 [sources.constellation]
 type = "constellation"
 # mrconfig = "~/.mrconfig"   # optional; realpath / symlink-aware
+# roots = ["~/src"]           # optional; on-disk roots scanned ONLY by `iris check` (the universe read)
+# depth = 2                   # max directory depth below each root
 
 # A generic CLI-JSON source: shell out to ANY command that emits JSON, and map its
 # item fields into the model. This is how you plug a knowledge base or notes tool
@@ -58,3 +60,25 @@ command = ["tasks", "list", "--open", "--json"]        # any CLI that emits a JS
 [sources.tasks.map]
 id = "id"                                              # stable task id (keys the node)
 title = "text"                                         # the task body (scanned for <repo>#<n> refs)
+
+# A `forge-repos` source: the repo listing of each forge org, read ONLY by `iris check` to compare the
+# forge with the local constellation. Several forges = several instances (e.g. one gh, one glab).
+# `host` and `orgs` are yours to fill in — keep them in your private sources.toml.
+[sources.forge]
+type = "forge-repos"
+host = "<forge-host>"                                  # part of every repo slug: <host>/<path>
+orgs = ["<org-or-group>"]
+command = ["gh", "repo", "list", "{org}", "--json", "nameWithOwner,isArchived", "--limit", "1000"]
+# items = ""                                            # dotted path to the list ("" = the top-level array)
+[sources.forge.map]
+path = "nameWithOwner"                                 # glab: "path_with_namespace"
+archived = "isArchived"                                # glab: "archived"
+
+# The `[check]` table: what `iris check` compares membership against.
+[check.exclude]                                        # knowingly NOT members: normalised slug = reason
+"<forge-host>/<org>/<repo>" = "<reason>"
+[check.host_aliases]                                   # optional: ssh host alias -> real host
+"<ssh-alias>" = "<forge-host>"
+[[check.mirrors]]                                      # a human-maintained member list to keep in sync
+path = "<path/to/members.md>"
+pattern = '(?<!~~)`([a-z0-9][a-z0-9._-]*)`(?!~~)'      # group 1 = a listed name
