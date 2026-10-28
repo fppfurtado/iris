@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from iris.core.federation import FederationResult
 from iris.core.membership import DRIFT_KINDS, compose_membership
 from iris.core.model import Node
