@@ -24,11 +24,9 @@ The durable domain — ubiquitous language, the seam rule, and cross-feature inv
 
 throughline: domain-glossary
 
-## Working norm (operational floor)
-
 <!-- floor block vendored below; never edit inside it, extend below the closing marker -->
 
-<!-- agent-kit operational-floor v17 — single source: agent-kit/onboarding/operational-floor.md
+<!-- agent-kit operational-floor v18 — single source: agent-kit/onboarding/operational-floor.md
      Copy this whole block into your repo's own AGENTS.md / CLAUDE.md, below your own content.
      Extend BELOW the closing marker; never edit INSIDE the block. Re-copy when the version bumps.
      This block is a SHIPPED ASSET: it stays English-as-shipped regardless of your repo's `## Language`
@@ -73,13 +71,21 @@ throughline: domain-glossary
      NOT-durable list. It is the hardest of that list to see: unlike chat or an ephemeral summary it
      genuinely persists and may load automatically, which is exactly why it reads as a disposition — but it
      is harness-private, so no repo-side check, audit, sweep or other harness can see what it holds
-     (agent-kit#2209; evidence: 190 records accumulated in one such store, 86% of them transferable method,
-     with only 18% of the method ones citing any repo home).
+     (wording corrected at v18 — that capability premise was falsified; agent-kit#2209; evidence: 190
+     records accumulated in one such store, 86% of them transferable method, with only 18% of the method
+     ones citing any repo home).
      v17 (2026-10-13) makes FIXED expressible in the Cycle-close capture sweep: a finding fixed in-flow is
      no longer excluded from the ledger but recorded as fixed, naming the fix, and "fixed in this cycle" joins
      the durable dispositions — before, the only named outcomes were a filed item or a reason it needs none,
      so a fixed finding read like nothing surfaced or got filed to have something to write. An open cure or
      an unverified change to an agent instruction is never "fixed" (agent-kit#2316, arc #1851).
+     v18 (2026-10-25) gives the Cycle-close capture sweep's harness-store sentence its promotion route: a
+     finding that is a rule or a method is written to its durable home in the cycle that finds it (that
+     write is its "fixed" disposition, so the never-fixed cases still bind), the store keeping
+     a pointer, never the only copy (before, the block said where a finding must not live and not
+     how it reaches a home; agent-kit#2183 decision 0050, #2950). The same sentence's ground changes from a
+     capability claim ("no repo-side check can see it") — which this repo's own committed script falsifies
+     — to the true one: the store is unversioned and absent from any diff or review (#2342).
      This generic block intentionally omits the maintainer-internal
      release/attestation rungs (a per-PR method self-check, issue-close-evidence, the PR attestation
      lines, and release-due surfacing for published units) — they depend on maintainer-specific tooling
@@ -169,10 +175,15 @@ with or without it.
   dispositions: reasoning over the class lets an odd-class item slip and land nowhere. **Nor does your
   agent harness's own memory/notes store suffice** — it is the hardest of these to see, because unlike the
   others it genuinely persists and may be loaded automatically, which is exactly why it reads as a
-  disposition. It is harness-private: no repo-side check, audit, sweep or other harness can see what it
-  holds, so a finding disposed only there discharges nothing this floor can verify. Write it there as
-  **well** if your harness offers one; it does not stand **instead** of a durable surface. A landing cycle records
-  each where the change lands; a landing-free pass records each in the pass's own output.
+  disposition. It lives outside the repo — unversioned, absent from any diff or review — so a finding
+  disposed only there discharges nothing this floor can verify. Write it there as **well** if your harness
+  offers one; it does not stand **instead** of a durable surface. **A finding that is a rule or a method —
+  not a fact about this repo's own state — is written to its durable home in the cycle that finds it** (a
+  doc or guideline in this repo, or a section you add below this block's closing marker); that write is its
+  "fixed in this cycle" disposition (so the two never-fixed cases above still bind), and the store entry
+  for it is a pointer to that home, never the only copy, because promoting it later is a step nobody
+  schedules. A landing cycle records each where the change lands; a landing-free pass writes no home — it
+  files the finding, or records it in the pass's own output.
 - **Verify before any destructive action.** <!-- rung:verify-before-any-destructive-action --> Before `rm` / overwrite / `clean`, verify the target against
   the real tree (tracked-files / status / an explicit path check) — never a bare directory listing, which
   goes stale across branch churn. Before `git stash pop`/`apply`/`drop`, check `git stash list` and target
@@ -208,4 +219,4 @@ throughline-built code (use the land-gate CI recipe your throughline install shi
 protection. These are per-harness / per-platform add-ons, not a dependency of the norm — where they are
 absent, the self-checks still bind.
 
-<!-- /agent-kit operational-floor v17 -->
+<!-- /agent-kit operational-floor v18 -->
