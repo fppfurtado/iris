@@ -70,7 +70,17 @@ If none exists, iris errors listing the searched locations. Set `IRIS_CONFIG` or
 ### Declaring sources
 
 Each `[sources.<name>]` table declares one source instance. `type` selects the implementation (the registry
-maps `type` → factory); the remaining keys are that type's options. Two source types ship built-in:
+maps `type` → factory); the remaining keys are that type's options. Five source types ship built-in:
+
+| type | reads | serves |
+|---|---|---|
+| `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, tags, relations); on-disk `roots` for `check` | all commands |
+| `cli-json` | any CLI that emits JSON, mapped into grounding hits | `ground`, `context` |
+| `tracker` | open issues per repo from a forge CLI (`gh`/`glab`), and a referenced issue's state | `context`, `chain` |
+| `tasks` | open (and done) task-list items from a knowledge base CLI | `context`, `chain` |
+| `forge-repos` | the repo listing of each configured forge org | `check` |
+
+The two most common, as an example:
 
 ```toml
 # A repo/asset registry from an `mr` manifest + Backstage catalog-info.yaml files.
@@ -211,7 +221,7 @@ stays read-only.
 
 ## Status
 
-Phase 1 is **stdio-only** and ships the two built-in source types above. HTTP/remote MCP transport and
+Phase 1 is **stdio-only** and ships the five built-in source types above. HTTP/remote MCP transport and
 additional federated sources grow by validated need (tracked in the issue backlog).
 
 ## Development
