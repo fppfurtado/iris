@@ -81,18 +81,85 @@ def parse_refs(text: str) -> list[Ref]:
 
 def repo_paths(mrconfig: Path) -> list[Path]:
     """Parse ``mrconfig`` section headers into absolute repo paths."""
+    return [path for path, _ in repo_entries(mrconfig)]
+
+
+def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:
+    """Each ``mrconfig`` repo section as ``(path, checkout command)`` — the command is ``""`` when absent."""
     text = mrconfig.read_text(encoding="utf-8")
-    paths: list[Path] = []
-    for match in _SECTION.finditer(text):
+    matches = list(_SECTION.finditer(text))
+    entries: list[tuple[Path, str]] = []
+    for i, match in enumerate(matches):
         name = match.group("name").strip()
         if name in _NON_REPO_SECTIONS:
             continue
         expanded = os.path.expandvars(os.path.expanduser(name))
-        if os.path.isabs(expanded) or "/" in expanded:
-            paths.append(Path(expanded))
-    return paths
+        if not (os.path.isabs(expanded) or "/" in expanded):
+            continue
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        checkout = _CHECKOUT.search(text, match.end(), end)
+        entries.append((Path(expanded), checkout.group(1).strip() if checkout else ""))
+    return entries
 
 
 def identity(path: Path) -> str:
     """The repo's cross-source join identity — its checkout basename."""
     return path.name
+
+
+# Clone-URL forms a remote can take: scp-style ``[user@]host:path``, and ``scheme://[user@]host[:port]/path``.
+_URL_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://(?:[^@/]+@)?(?P<host>[^/:]+)(?::\d+)?/(?P<path>.+)$", re.I)
+_URL_SCP = re.compile(r"^(?:[^@/\s]+@)?(?P<host>[^/:\s]+):(?P<path>[^\s]+)$")
+_URL_TOKEN = re.compile(r"""['"]?((?:[a-z][a-z0-9+.-]*://|[^\s'"@/]+@)[^\s'"]+)['"]?""", re.I)
+_CHECKOUT = re.compile(r"(?m)^\s*checkout\s*=\s*(.*)$")
+_ORIGIN_URL = re.compile(r'(?ms)^\[remote\s+"origin"\]\s*$(?P<body>.*?)(?=^\[|\Z)')
+_URL_KEY = re.compile(r"(?m)^\s*url\s*=\s*(\S+)\s*$")
+
+
+def forge_slug(url: str, host_aliases: dict | None = None) -> str | None:
+    """A clone URL's forge slug ``<host>/<path>``, normalised — ``None`` when ``url`` is not a clone URL.
+
+    Host and path are lowercased, a ``.git`` suffix, a trailing ``/`` and any port are dropped, and the host
+    is mapped through ``host_aliases`` (an ssh alias → the real host). The path keeps every segment, so a
+    GitLab subgroup repo stays distinct.
+    """
+    match = _URL_SCHEME.match(url) or _URL_SCP.match(url)
+    if not match:
+        return None
+    host = match.group("host").lower()
+    path = match.group("path").lower().rstrip("/")
+    if path.endswith(".git"):
+        path = path[: -len(".git")]
+    aliases = {str(k).lower(): str(v).lower() for k, v in (host_aliases or {}).items()}
+    host = aliases.get(host, host)
+    return f"{host}/{path}" if path else None
+
+
+def origin_url(repo: Path) -> str | None:
+    """The ``origin`` remote URL from a checkout's ``.git/config`` (read directly, no subprocess)."""
+    config = repo / ".git" / "config"
+    try:
+        text = config.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    section = _ORIGIN_URL.search(text)
+    if not section:
+        return None
+    url = _URL_KEY.search(section.group("body"))
+    return url.group(1) if url else None
+
+
+def checkout_url(command: str) -> str | None:
+    """The clone URL inside an ``mrconfig`` ``checkout =`` command (e.g. ``git clone '<url>' 'name'``)."""
+    for token in _URL_TOKEN.finditer(command):
+        if forge_slug(token.group(1)):
+            return token.group(1)
+    return None
+
+
+def local_slug(repo: Path, checkout: str = "") -> str:
+    """A local repo's membership identity: the forge slug of its ``origin`` — or, when the checkout is
+    absent, of the clone URL in its ``checkout =`` command — falling back to ``local:<basename>``."""
+    url = origin_url(repo) if repo.is_dir() else checkout_url(checkout)
+    slug = forge_slug(url) if url else None
+    return slug or f"local:{repo.name}"

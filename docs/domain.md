@@ -44,8 +44,11 @@ frozen value objects and exposes no write path to any source.
   relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).
 
 ### Node
-- **Definition:** a federated entity — a repo, a system, a concept, an issue — with `id`, `kind`, `title`,
-  `tags`, `roles`, `source`.
+- **Definition:** a federated entity — a repo, a resource, a system, a concept, an issue — with `id`, `kind`,
+  `title`, `tags`, `roles`, `source`, and `attrs` (the source facts a composition needs beyond display, e.g.
+  a repo's local path and forge slug). A `scope` node is not an entity: it records whether one dimension of
+  a universe read (the registry, a root, a forge org) was read, so an unread dimension is never taken for
+  an empty one.
 - **Relations:** the graph vertex; linked by `Relation`.
 
 ### Relation
@@ -59,19 +62,51 @@ frozen value objects and exposes no write path to any source.
 
 ### Kind
 - **Definition:** a result-kind label declaring what a source emits / a caller consumes (`nodes`, `hits`,
-  `chain`). `chain` = the live state of the SPECIFIC nodes an item references (issues incl. closed,
-  anchors incl. done), distinct from `nodes` (a repo's open satellites).
+  `chain`, `universe`). `chain` = the live state of the SPECIFIC nodes an item references (issues incl.
+  closed, anchors incl. done), distinct from `nodes` (a repo's open satellites). `universe` = every repo a
+  source can see beyond the registry (see Universe).
 - **Relations:** drives kind-aware federation (BR07) — a source producing none of a query's kinds is skipped.
 
 ### Identity
-- **Definition:** the key by which an entity is matched ACROSS sources for a Composition (today: a repo's
-  basename, derived identically by every source from the shared sovereign repo registry).
+- **Definition:** the key by which an entity is matched ACROSS sources for a Composition. For the `context`
+  and `chain` joins, a repo's checkout basename, derived identically by every source from the shared
+  sovereign repo registry; for the membership check, a repo's forge slug `<host>/<path>` (see Member),
+  since a basename is not unique once on-disk roots and forges join the universe.
 - **Relations:** mediates cross-context joining (BR06). A *declared* cross-store identity protocol beyond the
   shared derivation is an open domain question (Brief F6).
 
 ### Repo
 - **Parent:** Node (`kind="repo"`).
-- **Definition:** a repository entity from the repo-registry source, identified by its checkout basename.
+- **Definition:** a repository entity, identified by its checkout basename. Its origin is the repo registry,
+  or — in a universe read only — a checkout under an on-disk root or a forge org's listing.
+
+### Resource
+- **Parent:** Node (`kind="resource"`).
+- **Definition:** a non-code entity (an account, a database, a shared secret…) declared as a
+  `kind: Resource` document in a repo's descriptor, and hosted by that repo (`hosted-by` Relation). A shared
+  Resource is declared at both ends: each consumer declares its dependency on it, and the Resource lists its
+  consumers back; the two must agree.
+
+### Member
+- **Definition:** a repo whose local checkout carries a descriptor (`catalog-info.yaml`) — membership IS
+  having a descriptor. A repo the forge reports archived is not a live member. Members are matched by forge
+  slug (`<host>/<path>`), not by checkout basename.
+
+### Universe
+- **Definition:** the union of the repo registry, the checkouts under the configured on-disk roots and the
+  forge orgs' repo listings — read only for a `universe`-kind query (`iris check`).
+
+### Drift
+- **Definition:** a divergence between membership and its declarations, from the closed set of drift kinds
+  fixed by the Spec `constellation-membership-check` (by reference; not restated here).
+
+### Exclusion list
+- **Definition:** the `[check.exclude]` table — repos knowingly NOT members, each keyed by slug with a
+  non-empty reason.
+
+### Mirror
+- **Definition:** a human-maintained list of member names outside iris that must match membership,
+  declared in `[[check.mirrors]]` with a pattern that extracts the listed names.
 
 ### Issue
 - **Parent:** Node (`kind="issue"`).

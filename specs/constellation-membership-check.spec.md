@@ -1,7 +1,7 @@
 # Spec: constellation membership & drift check — Resources, resource dependencies, explicit universe
 
 - Frozen at: 2026-10-28
-- Spec version: v1
+- Spec version: v1.1
 - Source: iris#48 (requirements 1–4 and its out-of-scope paragraph). The problem framing and the arrangement
   that assigns this capability to iris are upstream of this repo and private; iris#48 restates the
   requirements generically, and this Spec cites them as `Q1`–`Q4` (the issue's numbered items) plus `Q4a`–`Q4f`
@@ -11,7 +11,13 @@
 - Status: frozen after approval on 2026-10-28 (operator: "Pode congelar"). Pre-freeze reads: one blind read
   (J5/J6/J3/J1, 4 findings) + two scoped reads of the fix text (4 and 5 findings), all fixed; the last
   fixes had no reader — accepted by the operator, the build's per-kind fixtures and `review` are the backstop
-- Amendments: none
+- Amendments: v1.1 (2026-10-28, after build + review of PR iris#51; operator: "pode fazer o ajuste na
+  spec") — text aligned with the built behaviour, no requirement changed: (a) the Resource node carries
+  `attrs.host` (its host repo's node id) beside `attrs.host_path`, which SP-T1's acceptance and the Data model
+  named differently; (b) SP-T2's host-alias clause moves to the check's joins, since a source never receives
+  the `[check]` table; (c) the check queries the `universe` kind alone; (d) a registry that could not be read
+  is a skipped dimension, with no drift computed (review finding F1). The build's other open choices are
+  recorded in `decisions/0001-constellation-check-build.md`.
 
 <!-- Non-normative orientation. Today the constellation source reads the mrconfig and the FIRST document
      of each catalog-info.yaml, and turns every spec.dependsOn into an untyped relation. This increment
@@ -27,7 +33,7 @@
 
 ```
 sources.toml ──► constellation (mrconfig [+ roots, universe-kind only]) ─┐
-                 forge-repos   (one CLI call per configured org)        ─┤ federate(kinds={nodes,universe})
+                 forge-repos   (one CLI call per configured org)        ─┤ federate(kinds={universe})
                                                                           │   (BR04 isolation, BR07 routing)
                  [check] table: exclusions, mirrors ──────────────┐      │
                                                                    ▼      ▼
@@ -92,7 +98,9 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
     `ssh://[user@]host[:port]/path(.git)` and `https://host/path(.git)` forms; no subprocess).
   - Normalisation, applied to every slug: host and path lowercased (the forges treat them
     case-insensitively), `.git` suffix and trailing `/` dropped, port dropped, and the host mapped through
-    the optional `[check.host_aliases]` table (an ssh alias such as `gh-work` → the real host).
+    the optional `[check.host_aliases]` table (an ssh alias such as `gh-work` → the real host). [v1.1] A source
+    does not receive the `[check]` table, so the aliases are applied by `compose_membership` to every slug
+    before any join; the slug a node carries is unaliased.
   - mrconfig entry whose path does not exist: parsed from the clone URL on its `checkout =` line, so an
     uncloned entry still has its real identity.
   - Forge repo: `<host>/<full path>`, with `host` a required option of each forge source instance
@@ -112,8 +120,8 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
   repo's `declared_name`, and from there to its slug. A Resource's host is the repo whose descriptor
   declares it (recorded by the source as that repo's `path`; the composer resolves it to the slug).
 - **Resource node** — `Node(kind="resource", id=<metadata.name>, title=<metadata.description or name>,
-  roles=[spec.type] if any, source=<source name>, attrs={"host_path": <host repo path>, "dependency_of":
-  [<consumer entity names>]})`. Its relation is `Relation(from_=<resource id>, type="hosted-by",
+  roles=[spec.type] if any, source=<source name>, attrs={"host": <host repo node id>, "host_path": <host repo
+  path>, "dependency_of": [<consumer entity names>]})` [v1.1: `host` added]. Its relation is `Relation(from_=<resource id>, type="hosted-by",
   to=<host repo node id>)`, for the existing graph readers; the check uses `host_path`.
 - **Typed dependency** — each `spec.dependsOn` entry of the Component document is parsed as a Backstage
   entity ref `[<kind>:][<namespace>/]<name>`. The check reads it from the repo node's `attrs.depends_on`.
@@ -232,6 +240,8 @@ state, and the drift that would revive it is `archived-registered`.
 
 - **Fail-honest:** a dimension that could not run (forge unreachable, a mirror file unreadable, no roots
   configured while `uncloned` needs a universe beyond the mrconfig) is listed in `skipped` and drives exit 2.
+  [v1.1] A registry that could not be read is such a dimension too, and every kind rests on it, so the
+  check then computes no drift at all rather than drift against an empty local side.
   It is never folded into "clean".
 - **Read-only (BR03):** no command writes anything; the check reports only.
 - **Source-agnostic (BR02):** no org, host, path or repo name appears in code, defaults, tests' expected
@@ -246,13 +256,14 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
 
 ## Task plan
 
-- SP-T1: shared descriptor parser `sources/_catalog.py` — `parse_descriptor(path)` returns the Component
+- SP-T1 [v1.1]: shared descriptor parser `sources/_catalog.py` — `parse_descriptor(path)` returns the Component
   metadata (first mapping doc whose `kind` is absent or `Component`), the list of Resource docs, and the raw
   `dependsOn` refs; plus `parse_entity_ref(ref)`. Rewire `constellation._node_from_catalog` onto it and emit
   Resource nodes + `hosted-by` relations; add `Node.attrs`. Rewrite the constellation module docstring to
   the new behavior (replace, not stack). — implements Q1, Q2 — acceptance (EARS):
   - "WHEN a descriptor holds a Component and two Resource documents, the source SHALL emit one repo node,
-    two `resource` nodes with `attrs.host` = the repo identity, and two `hosted-by` relations";
+    two `resource` nodes with `attrs.host` = the repo node id and `attrs.host_path` = its path, and two
+    `hosted-by` relations";
   - "WHEN `dependsOn` holds `resource:erp-account`, `component:default/x` and `y`, `parse_entity_ref`
     SHALL return `("resource", None, "erp-account")`, `("component", "default", "x")`, `(None, None, "y")`";
   - "the existing constellation tests SHALL pass unchanged";
@@ -261,7 +272,7 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   - "WHEN a Resource declares `spec.dependencyOf: [component:a, b]`, its node SHALL carry
     `attrs.dependency_of == ["a", "b"]`".
   Persisted tests in `tests/test_catalog.py` + `tests/test_constellation_source.py`. — depends on: —
-- SP-T2: constellation `roots`/`depth` options + universe-kind behavior + `KIND_UNIVERSE`. Repo nodes carry
+- SP-T2 [v1.1]: constellation `roots`/`depth` options + universe-kind behavior + `KIND_UNIVERSE`. Repo nodes carry
   `attrs` (`path`, `descriptor`, `origin`, and `exists` for mrconfig entries). — implements Q3, Q4b —
   acceptance (EARS):
   - "WHEN a query's kinds include `universe`, the source SHALL add every checkout found under the roots
@@ -275,8 +286,8 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   - "WHEN a checkout's `.git/config` has `[remote "origin"] url = git@host.example:org/real-name.git` and
     the directory is named `other`, its node SHALL carry `attrs.slug == "host.example/org/real-name"`; the
     `https://host.example/org/sub/real-name.git` form SHALL yield `host.example/org/sub/real-name`, the
-    `ssh://git@Host.Example:2222/Org/X.git` form SHALL yield `host.example/org/x`, and a host listed in
-    `[check.host_aliases]` SHALL be replaced by its target";
+    `ssh://git@Host.Example:2222/Org/X.git` form SHALL yield `host.example/org/x`; and, in the check's
+    joins, a host listed in `[check.host_aliases]` SHALL be replaced by its target";
   - "IF an mrconfig entry's path does not exist and its `checkout =` line holds a clone URL, THEN its node
     SHALL carry the slug parsed from that URL";
   - "IF a checkout has no `origin`, THEN its slug SHALL be `local:<basename>`";

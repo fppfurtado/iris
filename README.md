@@ -70,7 +70,17 @@ If none exists, iris errors listing the searched locations. Set `IRIS_CONFIG` or
 ### Declaring sources
 
 Each `[sources.<name>]` table declares one source instance. `type` selects the implementation (the registry
-maps `type` → factory); the remaining keys are that type's options. Two source types ship built-in:
+maps `type` → factory); the remaining keys are that type's options. Five source types ship built-in:
+
+| type | reads | serves |
+|---|---|---|
+| `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, tags, relations); on-disk `roots` for `check` | all commands |
+| `cli-json` | any CLI that emits JSON, mapped into grounding hits | `ground`, `context` |
+| `tracker` | open issues per repo from a forge CLI (`gh`/`glab`), and a referenced issue's state | `context`, `chain` |
+| `tasks` | open (and done) task-list items from a knowledge base CLI | `context`, `chain` |
+| `forge-repos` | the repo listing of each configured forge org | `check` |
+
+The two most common, as an example:
 
 ```toml
 # A repo/asset registry from an `mr` manifest + Backstage catalog-info.yaml files.
@@ -101,6 +111,7 @@ iris repos [--tag <tag>]      # list repos with their tags/roles (optionally fil
 iris ground "<query>"         # ground a query across federated sources
 iris context "<task>"         # assemble the integral context relevant to a task
 iris chain "<item text>"      # resolve a work item's cross-repo dependency chain in one shot
+iris check [--json]           # check constellation membership for drift (exit 0/1/2)
 ```
 
 `chain` parses the `<repo>#<n>` and `^<anchor>` references in a work item's prose, fetches each
@@ -135,6 +146,48 @@ meta-system  [meta]
 …
 ```
 
+### `check` — constellation membership and drift
+
+`iris check` reads the whole repo **universe** — the registry (`mrconfig`), every checkout under the
+constellation source's on-disk `roots`, and the repo listing of each org a `forge-repos` source names —
+and reports **membership drift**. A repo is a **member** when its checkout carries a `catalog-info.yaml`;
+a repo the forge reports archived is never a live member. Repos are matched by their **forge slug**
+(`<host>/<path>`, from the checkout's `origin` remote), never by directory name. Knowingly non-member
+repos go in the `[check.exclude]` table with a reason; human-maintained member lists can be declared as
+`[[check.mirrors]]` and are checked against membership. Configuration: see
+[`sources.example.toml`](sources.example.toml).
+
+Drift kinds (a closed set):
+
+| kind | fires when |
+|---|---|
+| `undeclared-member` | a local checkout has no descriptor and is neither excluded nor archived |
+| `uncloned` | a live, non-excluded forge repo has no local checkout and no registry entry |
+| `stale-remote` | a checkout's `origin` is on a forge org that was read, but the forge does not list it |
+| `phantom` | a registry entry's path does not exist |
+| `unregistered` | a member has no registry entry |
+| `archived-registered` | an archived forge repo still has a registry entry |
+| `archived-host` | a Resource's host repo is archived |
+| `dangling-dependency` | a `dependsOn: resource:<x>` names no declared Resource |
+| `one-end-only` | a Resource's consumers (`dependsOn`) differ from its `dependencyOf` list |
+| `name-mismatch` | a member's descriptor `metadata.name` differs from its slug's name |
+| `exclusion-invalid` | an exclusion has an empty reason, or names no repo in the universe |
+| `exclusion-promoted` | an excluded repo's checkout carries a descriptor |
+| `mirror-missing` | a live member is not listed in a mirror |
+| `mirror-stale` | a mirror lists a name that is no live member |
+| `duplicate-identity` | two local paths resolve to one slug |
+
+Output is one `## <kind>` section per kind found, skipped dimensions on stderr (`# skipped: …`) and a
+one-line summary; `--json` emits `{"drift": [...], "skipped": [...], "counts": {...}}`. Exit codes, for a
+scheduler to act on:
+
+- **0** — no drift, and every dimension ran;
+- **1** — at least one drift item;
+- **2** — no drift found, but a dimension was skipped (forge unreachable or not configured, no roots,
+  an unreadable mirror) — never reported as clean.
+
+The universe is read only by `check`: `repos`, `context` and `chain` never scan the roots or call the forge.
+
 All commands are **read-only**. Diagnostic notes are printed to stderr (prefixed `#`), so stdout stays
 clean for piping.
 
@@ -168,7 +221,7 @@ stays read-only.
 
 ## Status
 
-Phase 1 is **stdio-only** and ships the two built-in source types above. HTTP/remote MCP transport and
+Phase 1 is **stdio-only** and ships the five built-in source types above. HTTP/remote MCP transport and
 additional federated sources grow by validated need (tracked in the issue backlog).
 
 ## Development

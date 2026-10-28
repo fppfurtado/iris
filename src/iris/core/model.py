@@ -26,6 +26,9 @@ class Node:
     tags: list[str] = field(default_factory=list)
     roles: list[str] = field(default_factory=list)
     source: str = ""
+    # Source facts a composer needs beyond the display fields (e.g. a repo's local path and forge slug,
+    # a resource's host). Optional: a source that has none omits it.
+    attrs: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

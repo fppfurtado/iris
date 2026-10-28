@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import typer
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
@@ -9,8 +11,9 @@ from iris.config import Config, active_config
 from iris._present import relevant_repos
 from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import FederationResult, federate
+from iris.core.membership import compose_membership
 from iris.core.model import Node
-from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, Query
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, KIND_UNIVERSE, Query
 from iris.telemetry import log_request
 
 app = typer.Typer(
@@ -187,6 +190,56 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
             "unresolved": len(composed.unresolved),
         },
     )
+
+
+@app.command()
+def check(as_json: bool = typer.Option(False, "--json", help="Emit the report as JSON.")) -> None:
+    """Check constellation membership for drift (read-only).
+
+    Reads the repo universe (registry, on-disk roots, forge orgs) and reports each drift kind found.
+    Exit code: 0 = no drift and every dimension ran; 1 = drift found; 2 = no drift found but a
+    dimension was skipped (never reported as clean).
+    """
+    config = _load_config()
+    result = federate(config, Query(kinds=frozenset({KIND_UNIVERSE})))
+    report = compose_membership(result, config.check)
+    if as_json:
+        payload = {
+            "drift": [{"kind": i.kind, "subject": i.subject, "detail": i.detail} for i in report.items],
+            "skipped": report.skipped,
+            "counts": report.counts,
+        }
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        current = None
+        for item in report.items:
+            if item.kind != current:
+                current = item.kind
+                typer.echo(f"## {item.kind}")
+            typer.echo(f"- {item.subject}  {item.detail}")
+        for skip in report.skipped:
+            typer.echo(f"# skipped: {skip}", err=True)
+        counts = ", ".join(f"{v} {k}" for k, v in report.counts.items())
+        if report.items:
+            kinds = len({i.kind for i in report.items})
+            typer.echo(f"drift: {len(report.items)} item(s) across {kinds} kind(s) ({counts})")
+        elif report.skipped:
+            typer.echo(f"no drift found, but {len(report.skipped)} dimension(s) skipped — result incomplete ({counts})")
+        else:
+            typer.echo(f"clean ({counts})")
+    _emit_notes(result)
+    log_request(
+        "check",
+        "",
+        hits=0,
+        nodes=report.counts.get("members", 0),
+        sources=_source_names(config),
+        extra={"drift": len(report.items), "skipped": len(report.skipped)},
+    )
+    if report.items:
+        raise typer.Exit(1)
+    if report.skipped:
+        raise typer.Exit(2)
 
 
 def main() -> None:
