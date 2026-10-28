@@ -81,31 +81,41 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
 
   It is backward compatible, since every existing constructor call omits it. `Node` is already unhashable
   (list fields), so a dict field changes nothing there. Node ids are unchanged (the checkout basename for
-  repos), so `repos`/`context`/`chain` see the same ids as today.
+  repos), so `repos`/`context`/`chain` see the same ids as today. Because a basename is not unique once roots
+  are scanned, **the check never joins on node ids**: it joins local repos by `attrs.path` and identities by
+  `attrs.slug`. A local repo node therefore also carries `depends_on` (list of raw `dependsOn` refs).
 - **Membership identity — ONE key for every check join: the forge slug `<host>/<path>`** (e.g.
   `github.com/some-org/some-repo`; `<path>` is the full repo path, GitLab subgroups included).
-  - Local checkout: parsed from the `origin` URL in `.git/config` (ssh `git@host:path(.git)` and
-    `https://host/path(.git)` forms; no subprocess).
+  - Local checkout: parsed from the `origin` URL in `.git/config` (scp-style `git@host:path(.git)`,
+    `ssh://[user@]host[:port]/path(.git)` and `https://host/path(.git)` forms; no subprocess).
+  - Normalisation, applied to every slug: host and path lowercased (the forges treat them
+    case-insensitively), `.git` suffix and trailing `/` dropped, port dropped, and the host mapped through
+    the optional `[check.host_aliases]` table (an ssh alias such as `gh-work` → the real host).
   - mrconfig entry whose path does not exist: parsed from the clone URL on its `checkout =` line, so an
     uncloned entry still has its real identity.
-  - Forge repo: `<host>/<org>/<name>`, with `host` a required option of each forge source instance
-    (private config) and `<org>` the configured org.
+  - Forge repo: `<host>/<full path>`, with `host` a required option of each forge source instance
+    (private config) and `<full path>` the repo's full path as the forge lists it (mapped field `path`:
+    gh `nameWithOwner`, glab `path_with_namespace`), so a GitLab subgroup repo keeps every segment.
+  - "A host+org the forge dimension read" means: a forge source with that `host` ran the command for an org
+    `<org>` without failing; a local slug falls under it when its path starts with `<org>/` (subgroups
+    included, provided the listing command includes them, e.g. glab `--include-subgroups`).
   - Fallback: a checkout with no `origin` (or an mrconfig entry with no parsable URL) gets
     `local:<basename>`; it can never match a forge entry, so it is reported only by the local kinds.
   The **name** of an identity is its last path segment; mirrors (human lists of names) compare by name.
-  The `[check.exclude]` keys are slugs. Because the slug carries host and org, two genuinely different
+  The `[check.exclude]` keys are normalised slugs, quoted in TOML. Because the slug carries host and org, two genuinely different
   repos with one name in two orgs stay distinct, and the same repo on two forges is two identities (a
   mirror repo is excluded like any other non-member).
 - **Entity names (the Resource graph)** — descriptor refs (`dependsOn`, `dependencyOf`) name **entities**
   (`metadata.name`), as in Backstage, not slugs. The composer maps each entity name to its repo through the
   repo's `declared_name`, and from there to its slug. A Resource's host is the repo whose descriptor
-  declares it (recorded by the source as that repo's node id; the composer resolves it to the slug).
+  declares it (recorded by the source as that repo's `path`; the composer resolves it to the slug).
 - **Resource node** — `Node(kind="resource", id=<metadata.name>, title=<metadata.description or name>,
-  roles=[spec.type] if any, source=<source name>, attrs={"host": <host repo node id>, "dependency_of":
+  roles=[spec.type] if any, source=<source name>, attrs={"host_path": <host repo path>, "dependency_of":
   [<consumer entity names>]})`. Its relation is `Relation(from_=<resource id>, type="hosted-by",
-  to=<host repo node id>)`.
+  to=<host repo node id>)`, for the existing graph readers; the check uses `host_path`.
 - **Typed dependency** — each `spec.dependsOn` entry of the Component document is parsed as a Backstage
-  entity ref `[<kind>:][<namespace>/]<name>`. It becomes `Relation(from_=<repo node id>, type="dependsOn",
+  entity ref `[<kind>:][<namespace>/]<name>`. The check reads it from the repo node's `attrs.depends_on`.
+  For the existing graph readers it also becomes `Relation(from_=<repo node id>, type="dependsOn",
   to=<the raw ref string>)`, keeping the current shape so the existing test and readers hold. A helper
   `parse_entity_ref(ref) -> (kind | None, namespace | None, name)` is the single interpretation point.
   Namespace is ignored: a personal constellation has one namespace.
@@ -123,8 +133,8 @@ says otherwise.
 
 | kind | fires when | serves |
 |---|---|---|
-| `undeclared-member` | a local checkout (mrconfig or roots) has no descriptor and its slug is not excluded | Q4a |
-| `uncloned` | a forge repo, not archived and not excluded, has no local checkout and no mrconfig entry with its slug | Q3, Q4a |
+| `undeclared-member` | a local checkout (mrconfig or roots) has no descriptor, its slug is not excluded, and it is not archived | Q4a |
+| `uncloned` | a forge repo, not archived and not excluded, has no local checkout and no mrconfig entry with its slug. When a `stale-remote` item exists under the same host+org, the detail says so: a rename shows as both (the forge keeps no old name to pair them) | Q3, Q4a |
 | `stale-remote` | a local checkout's `origin` slug is on a host+org the forge dimension read, but the forge does not list it (renamed, moved or deleted on the forge) | Q4a, Q4c |
 | `phantom` | an mrconfig entry's path does not exist on disk | Q4b |
 | `unregistered` | a member (local checkout with a descriptor, not archived) has a slug no mrconfig entry carries | Q4b |
@@ -166,10 +176,10 @@ state, and the drift that would revive it is `archived-registered`.
   type = "forge-repos"
   host = "<forge-host>"                                             # private config only; part of the slug
   orgs = ["<org-or-group>", "..."]                                  # private config only
-  command = ["gh", "repo", "list", "{org}", "--json", "name,isArchived", "--limit", "1000"]
+  command = ["gh", "repo", "list", "{org}", "--json", "nameWithOwner,isArchived", "--limit", "1000"]
   # items = ""                                                      # dotted path to the list
   [sources.forge.map]
-  name = "name"          # glab: "path"
+  path = "nameWithOwner"  # glab: "path_with_namespace"
   archived = "isArchived" # glab: "archived"
   ```
   Several forges = several instances of this type (e.g. `[sources.forge-a]` with a `gh` command and
@@ -179,9 +189,11 @@ state, and the drift that would revive it is `archived-registered`.
   only `universe`.
 - **Config — `[check]` table** (new; read by `load_config` into `Config.check: dict`):
   ```toml
-  [check.exclude]          # repos that are knowingly NOT members: identity = reason
-  some-study-repo = "study"
-  some-fork = "third-party"
+  [check.exclude]          # repos that are knowingly NOT members: normalised slug = reason
+  "forge.example/some-org/some-study-repo" = "study"
+  "forge.example/some-org/some-fork" = "third-party"
+  [check.host_aliases]     # optional: ssh host alias -> real host
+  "gh-alias" = "forge.example"
   [[check.mirrors]]        # human-maintained member lists that must mirror membership
   path = "~/path/to/charter.md"
   pattern = '(?<!~~)`([a-z0-9][a-z0-9._-]*)`(?!~~)'   # group 1 = a listed name
@@ -260,7 +272,9 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   - "IF an mrconfig path does not exist, THEN its node SHALL carry `attrs.exists=False`";
   - "WHEN a checkout's `.git/config` has `[remote "origin"] url = git@host.example:org/real-name.git` and
     the directory is named `other`, its node SHALL carry `attrs.slug == "host.example/org/real-name"`; the
-    `https://host.example/org/sub/real-name.git` form SHALL yield `host.example/org/sub/real-name`";
+    `https://host.example/org/sub/real-name.git` form SHALL yield `host.example/org/sub/real-name`, the
+    `ssh://git@Host.Example:2222/Org/X.git` form SHALL yield `host.example/org/x`, and a host listed in
+    `[check.host_aliases]` SHALL be replaced by its target";
   - "IF an mrconfig entry's path does not exist and its `checkout =` line holds a clone URL, THEN its node
     SHALL carry the slug parsed from that URL";
   - "IF a checkout has no `origin`, THEN its slug SHALL be `local:<basename>`";
@@ -270,7 +284,7 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   acceptance (EARS):
   - "WHEN configured with two orgs, the source SHALL run the command once per org with `{org}`
     substituted and emit one `repo` node per listed repo with `origin="forge"`, `attrs.slug ==
-    "<host>/<org>/<name>"` and `attrs.archived` from the mapped field";
+    "<host>/<full path>"` from the mapped `path` field (a `group/sub/x` path keeps all three segments) and `attrs.archived` from the mapped field";
   - "IF the `host` option is missing, THEN the source SHALL return `ok=False` with a note (no slug can be
     formed)";
   - "IF one org's command fails or emits invalid JSON, THEN the source SHALL still return the other org's
@@ -279,8 +293,8 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   - "the module SHALL contain no org, host or instance literal" (grep test over the module source, the
     BR02 check).
   Persisted tests with a fake command. — depends on: SP-T2
-- SP-T4: `[check]` table in config — `Config.check` (default `{}`), `exclude` and `mirrors` parsed as
-  given. — implements Q4f, Q4a (mirror) — acceptance (EARS):
+- SP-T4: `[check]` table in config — `Config.check` (default `{}`), `exclude`, `host_aliases` and
+  `mirrors` parsed as given. — implements Q4f, Q4a (mirror) — acceptance (EARS):
   - "WHEN `sources.toml` has a `[check]` table, `load_config` SHALL expose it as `Config.check`";
   - "WHEN it has none, `Config.check` SHALL be `{}` and every existing config test SHALL pass".
   Persisted test in `tests/test_config.py`. — depends on: —
@@ -293,7 +307,11 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
     report SHALL yield no `uncloned` for it and no item under the basename";
   - "WHEN a checkout's `origin` slug is absent from the forge listing of its host+org and the forge lists
     a different slug for the same checkout's renamed repo, the report SHALL yield `stale-remote` for the
-    checkout" (the rename case);
+    checkout and `uncloned` for the new slug with a detail naming the stale-remote item" (the rename case);
+  - "WHEN two local checkouts under different roots share a basename and only one hosts a Resource,
+    `archived-host` and `one-end-only` SHALL resolve that Resource to the right one (joined by path)";
+  - "WHEN the forge lists `group/sub/x` and a checkout's origin is `group/sub/x`, the report SHALL yield
+    neither `uncloned` nor `stale-remote` for it";
   - "WHEN two forge sources list repos with one name under different hosts or orgs, the report SHALL treat
     them as two identities and yield no `duplicate-identity`";
   - "WHEN a Resource has consumers declaring `dependsOn` and no `dependencyOf`, the report SHALL yield one
@@ -369,6 +387,10 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   agent context reads. Value-rejected: no agent consumer named; parity can be added by need.
 - **A shared resource declared at NEITHER end** (a coupling with no `dependsOn` and no `dependencyOf`) —
   leaves no declaration to read, so no check can see it. Value-rejected: no signal exists to compute it.
+- **A descriptor `lifecycle` of `deprecated` on a live (not archived) repo** — not checked. Deprecating
+  before archiving is a legitimate transition state, so a mismatch is not drift by itself; the archived
+  direction is covered by the forge flag (see the Data model). Value-rejected: no rule distinguishes a
+  stale `deprecated` from a deliberate one.
 - **Reading descriptors of forge-only repos remotely** (without a local checkout) — such repos surface as
   `uncloned`, which is the actionable signal (clone it or exclude it). Value-rejected: a remote content read per repo adds
   forge API coupling for no decision it changes.
