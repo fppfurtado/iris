@@ -71,63 +71,80 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
 
 - **`Node.attrs`** — new optional field `attrs: dict = field(default_factory=dict)` on the existing frozen
   `Node`. It carries source facts the check needs:
-  - `path` (str, local checkout);
+  - `path` (str, local checkout or mrconfig entry path);
   - `descriptor` (bool);
   - `origin` (`"mrconfig"` | `"disk"` | `"forge"`);
-  - `archived` (bool, forge only);
   - `exists` (bool, mrconfig entries);
-  - `remote_name` (str, local checkouts: the last path segment of the `origin` remote URL with any `.git`
-    suffix removed, read from `.git/config` without a subprocess; absent when there is no `origin`);
+  - `slug` (str — the repo's **forge slug** `<host>/<path>`, see Membership identity);
   - `declared_name` (str, the descriptor's Component `metadata.name`, when a descriptor exists);
-  - `lifecycle` (str, the descriptor's `spec.lifecycle`, when present).
+  - `archived` (bool, forge only).
 
   It is backward compatible, since every existing constructor call omits it. `Node` is already unhashable
-  (list fields), so a dict field changes nothing there.
+  (list fields), so a dict field changes nothing there. Node ids are unchanged (the checkout basename for
+  repos), so `repos`/`context`/`chain` see the same ids as today.
+- **Membership identity — ONE key for every check join: the forge slug `<host>/<path>`** (e.g.
+  `github.com/some-org/some-repo`; `<path>` is the full repo path, GitLab subgroups included).
+  - Local checkout: parsed from the `origin` URL in `.git/config` (ssh `git@host:path(.git)` and
+    `https://host/path(.git)` forms; no subprocess).
+  - mrconfig entry whose path does not exist: parsed from the clone URL on its `checkout =` line, so an
+    uncloned entry still has its real identity.
+  - Forge repo: `<host>/<org>/<name>`, with `host` a required option of each forge source instance
+    (private config) and `<org>` the configured org.
+  - Fallback: a checkout with no `origin` (or an mrconfig entry with no parsable URL) gets
+    `local:<basename>`; it can never match a forge entry, so it is reported only by the local kinds.
+  The **name** of an identity is its last path segment; mirrors (human lists of names) compare by name.
+  The `[check.exclude]` keys are slugs. Because the slug carries host and org, two genuinely different
+  repos with one name in two orgs stay distinct, and the same repo on two forges is two identities (a
+  mirror repo is excluded like any other non-member).
+- **Entity names (the Resource graph)** — descriptor refs (`dependsOn`, `dependencyOf`) name **entities**
+  (`metadata.name`), as in Backstage, not slugs. The composer maps each entity name to its repo through the
+  repo's `declared_name`, and from there to its slug. A Resource's host is the repo whose descriptor
+  declares it (recorded by the source as that repo's node id; the composer resolves it to the slug).
 - **Resource node** — `Node(kind="resource", id=<metadata.name>, title=<metadata.description or name>,
-  roles=[spec.type] if any, source=<source name>, attrs={"host": <repo identity>})`. Its relation is
-  `Relation(from_=<resource id>, type="hosted-by", to=<repo identity>)`.
+  roles=[spec.type] if any, source=<source name>, attrs={"host": <host repo node id>, "dependency_of":
+  [<consumer entity names>]})`. Its relation is `Relation(from_=<resource id>, type="hosted-by",
+  to=<host repo node id>)`.
 - **Typed dependency** — each `spec.dependsOn` entry of the Component document is parsed as a Backstage
-  entity ref `[<kind>:][<namespace>/]<name>`. It becomes `Relation(from_=<repo>, type="dependsOn",
+  entity ref `[<kind>:][<namespace>/]<name>`. It becomes `Relation(from_=<repo node id>, type="dependsOn",
   to=<the raw ref string>)`, keeping the current shape so the existing test and readers hold. A helper
   `parse_entity_ref(ref) -> (kind | None, namespace | None, name)` is the single interpretation point.
-  Resource identity is the bare `name` (namespace ignored: a personal constellation has one namespace).
-- **Host-end declaration** — a Resource document MAY carry Backstage's `spec.dependencyOf` (entity refs of
-  its consumers). It is read with the same `parse_entity_ref` and kept on the resource node as
-  `attrs.dependency_of` (list of consumer names). Where present, it is the host end of the declaration that
-  the consumers' `dependsOn: resource:<name>` must match.
-- **Membership identity** — the composer keys a local checkout by `remote_name` when present, else by the
-  checkout basename, and a forge repo by its listed name. This is the check's join key only: `_repos.identity`
-  (the basename) stays the key of `context`/`chain`, which this increment does not touch. A forge repo listed
-  in two orgs or forges under one name is one identity (a mirror), not a duplicate.
+  Namespace is ignored: a personal constellation has one namespace.
+- **Both ends of a shared resource** — the consumer end is each consumer's `dependsOn: resource:<x>`; the
+  host end is the Resource's `spec.dependencyOf` (Backstage's own field), **absent = empty**. The two sets
+  must be equal. A Resource no one uses has both sets empty and is not drift, so requiring the comparison
+  everywhere costs an unshared resource nothing. A host lists its consumers once per shared resource; the
+  reverse view (`dependencyOf`) stays derivable from the consumer relations too (Q2).
 - **DriftItem** — `(kind: str, subject: str, detail: str)`. `kind` is from the closed set below.
 - **DriftReport** — `items: list[DriftItem]`, `skipped: list[str]` (dimensions that could not run, with
   why), `counts: dict[str, int]` (members, archived, excluded, resources, dependencies).
 
-**Drift kinds (closed set)** and the requirement each serves:
+**Drift kinds (closed set)** and the requirement each serves. Every comparison below is by slug unless it
+says otherwise.
 
 | kind | fires when | serves |
 |---|---|---|
-| `undeclared-member` | a local checkout (mrconfig or roots) has no descriptor and is not on the exclusion list | Q4a |
-| `uncloned` | a forge repo, not archived and not excluded, has no local checkout in the universe | Q3, Q4a |
+| `undeclared-member` | a local checkout (mrconfig or roots) has no descriptor and its slug is not excluded | Q4a |
+| `uncloned` | a forge repo, not archived and not excluded, has no local checkout and no mrconfig entry with its slug | Q3, Q4a |
+| `stale-remote` | a local checkout's `origin` slug is on a host+org the forge dimension read, but the forge does not list it (renamed, moved or deleted on the forge) | Q4a, Q4c |
 | `phantom` | an mrconfig entry's path does not exist on disk | Q4b |
-| `unregistered` | a member (local checkout with a descriptor, not archived) is absent from the mrconfig | Q4b |
-| `archived-host` | a Resource is hosted by a repo the forge reports archived | Q4c, Q4d |
+| `unregistered` | a member (local checkout with a descriptor, not archived) has a slug no mrconfig entry carries | Q4b |
+| `archived-registered` | a slug the forge reports archived is an mrconfig entry's slug (cloned or not) | Q4c |
+| `archived-host` | a Resource's host repo has a slug the forge reports archived | Q4c, Q4d |
 | `dangling-dependency` | a `dependsOn: resource:<x>` names no Resource `<x>` declared anywhere in the universe | Q4d |
-| `one-end-only` | a Resource that declares `dependencyOf` and its consumers disagree: a listed consumer lacks `dependsOn: resource:<x>`, or a repo with `dependsOn: resource:<x>` is not listed | Q4e |
-| `archived-registered` | a repo the forge reports archived is still an mrconfig entry (a new machine would re-clone it) | Q4c |
-| `name-mismatch` | a member's descriptor `metadata.name` differs from its membership identity (a rename not carried into the descriptor) | Q4a, Q4c |
-| `exclusion-invalid` | an exclusion entry has an empty reason, or names no repo in the universe — the "names no repo" half is suppressed while the forge dimension is skipped, since the repo may be forge-only | Q4f |
-| `exclusion-promoted` | an excluded repo carries a descriptor | Q4f |
-| `mirror-missing` | a member (not archived) is not listed in a configured mirror | Q4a (mirror) |
-| `mirror-stale` | a name a mirror lists is not a member, or is archived | Q4a, Q4c |
-| `duplicate-identity` | two different local paths share one membership identity | BR06 |
+| `one-end-only` | for a declared Resource, the set of consumers declaring `dependsOn: resource:<x>` differs from its `dependencyOf` set (absent = empty); one item per consumer in the difference, naming which end is missing | Q4e |
+| `name-mismatch` | a member's descriptor `metadata.name` differs from its slug's name (a rename not carried into the descriptor) | Q4a, Q4c |
+| `exclusion-invalid` | an exclusion entry has an empty reason, or its slug is in no source of the universe — the second half is suppressed while the forge dimension is skipped, since the repo may be forge-only | Q4f |
+| `exclusion-promoted` | an excluded slug's checkout carries a descriptor | Q4f |
+| `mirror-missing` | a member (not archived) has a name not listed in a configured mirror | Q4a (mirror) |
+| `mirror-stale` | a name a mirror lists is the name of no live member | Q4a, Q4c |
+| `duplicate-identity` | two different local paths resolve to one slug | BR06 |
 
 "Member" means: a repo in the universe whose local checkout carries a `catalog-info.yaml` (membership =
-having a descriptor). An archived repo is never counted as a live member. A Resource with no dependent is
-not drift when it declares no `dependencyOf`: a resource can be legitimately unshared. An archived repo's
-descriptor `lifecycle` is not checked: an archived forge repo is read-only, so its descriptor cannot be
-updated after archiving; the forge `archived` flag is the source of truth for that state, and the drift it
-must catch is the mrconfig entry that would revive it (`archived-registered`).
+having a descriptor). A slug the forge reports archived is never a live member; when the forge dimension is
+skipped, archived state is unknown and every local repo is treated as live (the skip is reported). An
+archived repo's descriptor `lifecycle` is not checked: an archived forge repo is read-only, so its
+descriptor cannot be updated after archiving; the forge `archived` flag is the source of truth for that
+state, and the drift that would revive it is `archived-registered`.
 
 ### Interfaces / contracts
 
@@ -147,6 +164,7 @@ must catch is the mrconfig entry that would revive it (`archived-registered`).
   ```toml
   [sources.forge]
   type = "forge-repos"
+  host = "<forge-host>"                                             # private config only; part of the slug
   orgs = ["<org-or-group>", "..."]                                  # private config only
   command = ["gh", "repo", "list", "{org}", "--json", "name,isArchived", "--limit", "1000"]
   # items = ""                                                      # dotted path to the list
@@ -240,15 +258,21 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   - "IF a directory contains a `.git` file (not directory), THEN it SHALL NOT be reported as a checkout";
   - "the scan SHALL NOT descend into a found checkout nor into a `.worktrees` directory";
   - "IF an mrconfig path does not exist, THEN its node SHALL carry `attrs.exists=False`";
-  - "WHEN a checkout's `.git/config` has `[remote "origin"] url = git@host:org/real-name.git` and the
-    directory is named `other`, its node SHALL carry `attrs.remote_name == "real-name"`";
-  - "a local node with a descriptor SHALL carry `attrs.declared_name` and, when present, `attrs.lifecycle`".
+  - "WHEN a checkout's `.git/config` has `[remote "origin"] url = git@host.example:org/real-name.git` and
+    the directory is named `other`, its node SHALL carry `attrs.slug == "host.example/org/real-name"`; the
+    `https://host.example/org/sub/real-name.git` form SHALL yield `host.example/org/sub/real-name`";
+  - "IF an mrconfig entry's path does not exist and its `checkout =` line holds a clone URL, THEN its node
+    SHALL carry the slug parsed from that URL";
+  - "IF a checkout has no `origin`, THEN its slug SHALL be `local:<basename>`";
+  - "a local node with a descriptor SHALL carry `attrs.declared_name`".
   Persisted tests with a tmp tree. — depends on: SP-T1
 - SP-T3: `forge-repos` source (`sources/forge.py`, registered as `forge-repos`). — implements Q3, Q4c —
   acceptance (EARS):
   - "WHEN configured with two orgs, the source SHALL run the command once per org with `{org}`
-    substituted and emit one `repo` node per listed repo with `origin="forge"` and `attrs.archived` from
-    the mapped field";
+    substituted and emit one `repo` node per listed repo with `origin="forge"`, `attrs.slug ==
+    "<host>/<org>/<name>"` and `attrs.archived` from the mapped field";
+  - "IF the `host` option is missing, THEN the source SHALL return `ok=False` with a note (no slug can be
+    formed)";
   - "IF one org's command fails or emits invalid JSON, THEN the source SHALL still return the other org's
     repos, with `ok=True` and a note naming the failing org and the word `incomplete`";
   - "IF every org fails, THEN `ok=False` with a note";
@@ -264,17 +288,25 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   the closed set, plus the `skipped` list. — implements Q3, Q4a–Q4f — acceptance (EARS), one persisted
   fixture test per kind in `tests/test_membership.py`:
   - "WHEN the fixture contains exactly one instance of a drift kind, the report SHALL contain exactly one
-    item of that kind with that subject" (one case per kind, 14 kinds);
-  - "WHEN a checkout directory's basename differs from its `remote_name` and the forge lists `remote_name`,
-    the report SHALL yield neither `uncloned` nor `undeclared-member`/`unregistered` under the basename";
-  - "WHEN the same name is listed by two forge sources, the report SHALL yield no `duplicate-identity`";
+    item of that kind with that subject" (one case per kind, 15 kinds);
+  - "WHEN a checkout directory's basename differs from its slug's name and the forge lists that slug, the
+    report SHALL yield no `uncloned` for it and no item under the basename";
+  - "WHEN a checkout's `origin` slug is absent from the forge listing of its host+org and the forge lists
+    a different slug for the same checkout's renamed repo, the report SHALL yield `stale-remote` for the
+    checkout" (the rename case);
+  - "WHEN two forge sources list repos with one name under different hosts or orgs, the report SHALL treat
+    them as two identities and yield no `duplicate-identity`";
+  - "WHEN a Resource has consumers declaring `dependsOn` and no `dependencyOf`, the report SHALL yield one
+    `one-end-only` item per consumer";
+  - "WHEN the forge dimension is skipped, archived state SHALL be unknown, every local repo SHALL be
+    treated as live, and `skipped` SHALL say so";
   - "WHEN a fixture constellation is fully consistent, the report SHALL have no items";
   - "an archived repo SHALL never yield `undeclared-member`, `uncloned`, `unregistered` or
     `mirror-missing`";
-  - "a Resource with no dependent SHALL yield no item";
+  - "a Resource with no consumer and no `dependencyOf` SHALL yield no item";
   - "IF the forge source contributed an `incomplete` or failure note, THEN `skipped` SHALL name the forge
-    dimension, `uncloned`, `archived-host` and `archived-registered` SHALL be computed only over what was
-    read, and no `exclusion-invalid` SHALL fire for an entry whose only defect is naming no repo";
+    dimension, `uncloned`, `stale-remote`, `archived-host` and `archived-registered` SHALL be computed only
+    over the host+orgs that were read, and no `exclusion-invalid` SHALL fire for an entry whose only defect is naming no repo";
   - "IF a mirror file cannot be read, THEN `skipped` SHALL name that mirror and no `mirror-*` item SHALL
     be emitted for it".
   — depends on: SP-T1, SP-T2, SP-T3, SP-T4
@@ -306,7 +338,7 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
     no clash is intended. These are system-regime statements (iris's own definitions), so they carry no
     world mark.
 
-  — implements Q1–Q4 (doc surfaces) — acceptance: "the README SHALL contain a `check` section listing all 14
+  — implements Q1–Q4 (doc surfaces) — acceptance: "the README SHALL contain a `check` section listing all 15
   drift kinds and the three exit codes" (test greps the README for each kind name); "`sources.example.toml`
   SHALL parse with `load_config` and contain no non-placeholder org" (test). — depends on: SP-T6
 
@@ -315,12 +347,12 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
 - Q2 (typed resource dependencies, reverse view derivable) -> SP-T1 (the `dependsOn` relations + resource
   nodes make `dependencyOf` a filter over relations; no dedicated command — see exclusions)
 - Q3 (explicit universe: mrconfig ∪ roots ∪ forge orgs, more than one forge) -> SP-T2, SP-T3, SP-T5
-- Q4a -> SP-T5 (`undeclared-member`, `uncloned`, `mirror-*`)
+- Q4a -> SP-T2, SP-T5 (`undeclared-member`, `uncloned`, `stale-remote`, `name-mismatch`, `mirror-*`)
 - Q4b -> SP-T2, SP-T5 (`phantom`, `unregistered`)
 - Q4c -> SP-T3, SP-T5 (`archived` flag drives membership, `archived-host`, `archived-registered`,
   `mirror-stale`, `name-mismatch` for renames)
 - Q4d -> SP-T5 (`dangling-dependency`, `archived-host`)
-- Q4e -> SP-T1, SP-T5 (`one-end-only`, over the host-end `dependencyOf` declaration)
+- Q4e -> SP-T1, SP-T5 (`one-end-only`: consumer `dependsOn` set vs host `dependencyOf` set, absent = empty)
 - Q4f -> SP-T4, SP-T5 (`exclusion-invalid`, `exclusion-promoted`)
 - Q4 (the command) -> SP-T6
 - No task without a Q*: `duplicate-identity` serves BR06 (identity-mediated joining), which the universe
@@ -337,9 +369,6 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   agent context reads. Value-rejected: no agent consumer named; parity can be added by need.
 - **A shared resource declared at NEITHER end** (a coupling with no `dependsOn` and no `dependencyOf`) —
   leaves no declaration to read, so no check can see it. Value-rejected: no signal exists to compute it.
-- **One-end matching for a Resource that declares no `dependencyOf`** — the host end is optional, so such a
-  Resource is checked only for dangling references. Value-rejected: requiring `dependencyOf` everywhere
-  would flag every legitimately unshared resource; a host that wants both ends checked declares it.
 - **Reading descriptors of forge-only repos remotely** (without a local checkout) — such repos surface as
   `uncloned`, which is the actionable signal (clone it or exclude it). Value-rejected: a remote content read per repo adds
   forge API coupling for no decision it changes.
@@ -354,9 +383,12 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   mirror, and a wrong pattern shows as a burst of `mirror-*` items, never as silence.
 
 ## Assumptions & invalidators
-- The `origin` remote name identifies a checkout's repo, and a name is unique across owned orgs —
-  invalidated if `duplicate-identity` fires, or if two genuinely different repos share a name across orgs
-  (they would be merged into one identity). A checkout with no `origin` falls back to its basename.
+- A checkout's `origin` slug identifies its repo — invalidated if `duplicate-identity` fires (two paths, one
+  slug), or if `stale-remote` fires (the forge no longer knows the slug; the fix is `git remote set-url`).
+  A checkout with no `origin` gets `local:<basename>`, which matches nothing on the forge by construction.
+- A repo kept on two forges is two identities, so the copy without a local checkout reports `uncloned` until
+  it is excluded — invalidated as a cost if mirrors become common (then a per-repo mirror declaration
+  would earn a place).
 - A `.git` directory marks a primary checkout and a `.git` file a linked worktree — invalidated by a
   submodule checkout under a root (its `.git` is a file, so it would be skipped). Acceptable: submodules are
   not constellation members.
