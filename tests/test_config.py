@@ -109,3 +109,24 @@ def test_no_config_anywhere_raises_listing_searched_paths(monkeypatch, tmp_path)
     msg = str(excinfo.value)
     assert "sources.toml" in msg
     assert "IRIS_CONFIG" in msg
+
+
+def test_check_table_is_exposed(tmp_path) -> None:
+    config = tmp_path / "sources.toml"
+    config.write_text(
+        '[sources.constellation]\n\n'
+        '[check.exclude]\n"forge.example/org/study" = "study"\n'
+        '[check.host_aliases]\n"gh-alias" = "forge.example"\n'
+        '[[check.mirrors]]\npath = "~/list.md"\npattern = "`([a-z]+)`"\n',
+        encoding="utf-8",
+    )
+    check = load_config(config).check
+    assert check["exclude"] == {"forge.example/org/study": "study"}
+    assert check["host_aliases"] == {"gh-alias": "forge.example"}
+    assert check["mirrors"] == [{"path": "~/list.md", "pattern": "`([a-z]+)`"}]
+
+
+def test_check_defaults_to_empty(tmp_path) -> None:
+    config = tmp_path / "sources.toml"
+    config.write_text("[sources.constellation]\n", encoding="utf-8")
+    assert load_config(config).check == {}

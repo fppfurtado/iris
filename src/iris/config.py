@@ -26,9 +26,11 @@ class SourceSpec:
 
 @dataclass(frozen=True)
 class Config:
-    """The federation configuration — the declared sources, in order."""
+    """The federation configuration — the declared sources, in order — plus the ``[check]`` table
+    (exclusions, host aliases, mirrors) the membership check reads, as given (``{}`` when absent)."""
 
     sources: list[SourceSpec] = field(default_factory=list)
+    check: dict = field(default_factory=dict)
 
 
 def load_config(path: str | Path) -> Config:
@@ -44,7 +46,7 @@ def load_config(path: str | Path) -> Config:
         opts = dict(opts or {})
         source_type = opts.pop("type", "")
         specs.append(SourceSpec(name=name, options=opts, type=source_type))
-    return Config(sources=specs)
+    return Config(sources=specs, check=dict(data.get("check") or {}))
 
 
 def _xdg_config_path() -> Path:
