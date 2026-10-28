@@ -26,6 +26,11 @@ KIND_HITS = "hits"
 # (state-carrying) rather than listing the open set. Kind-aware federation (BR07) then routes a
 # ``chain`` query only to sources that can serve it.
 KIND_CHAIN = "chain"
+# The universe kind (constellation membership check, iris#48): a caller (``check``) that wants EVERY repo
+# it can see — the registry, the checkouts under configured on-disk roots and the forge listings — rather
+# than the registry alone. Only sources that widen the repo set declare it; a query without it never pays
+# for a disk scan or a forge call.
+KIND_UNIVERSE = "universe"
 
 
 @dataclass(frozen=True)
