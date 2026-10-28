@@ -44,8 +44,11 @@ frozen value objects and exposes no write path to any source.
   relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).
 
 ### Node
-- **Definition:** a federated entity — a repo, a system, a concept, an issue — with `id`, `kind`, `title`,
-  `tags`, `roles`, `source`.
+- **Definition:** a federated entity — a repo, a resource, a system, a concept, an issue — with `id`, `kind`,
+  `title`, `tags`, `roles`, `source`, and `attrs` (the source facts a composition needs beyond display, e.g.
+  a repo's local path and forge slug). A `scope` node is not an entity: it records whether one dimension of
+  a universe read (the registry, a root, a forge org) was read, so an unread dimension is never taken for
+  an empty one.
 - **Relations:** the graph vertex; linked by `Relation`.
 
 ### Relation
@@ -65,8 +68,10 @@ frozen value objects and exposes no write path to any source.
 - **Relations:** drives kind-aware federation (BR07) — a source producing none of a query's kinds is skipped.
 
 ### Identity
-- **Definition:** the key by which an entity is matched ACROSS sources for a Composition (today: a repo's
-  basename, derived identically by every source from the shared sovereign repo registry).
+- **Definition:** the key by which an entity is matched ACROSS sources for a Composition. For the `context`
+  and `chain` joins, a repo's checkout basename, derived identically by every source from the shared
+  sovereign repo registry; for the membership check, a repo's forge slug `<host>/<path>` (see Member),
+  since a basename is not unique once on-disk roots and forges join the universe.
 - **Relations:** mediates cross-context joining (BR06). A *declared* cross-store identity protocol beyond the
   shared derivation is an open domain question (Brief F6).
 

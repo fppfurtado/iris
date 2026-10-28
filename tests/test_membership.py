@@ -41,6 +41,10 @@ def fscope(org: str = "org", host: str = H, read: bool = True) -> Node:
                 attrs={"dimension": "forge", "host": host, "org": org, "read": read})
 
 
+def gscope() -> Node:
+    return Node(id="registry:/m", kind="scope", title="/m", attrs={"dimension": "registry", "read": True})
+
+
 def rscope(root: str = "/r", read: bool = True) -> Node:
     return Node(id=f"roots:{root}", kind="scope", title=root, attrs={"dimension": "roots", "read": read})
 
@@ -51,7 +55,7 @@ def resource(rid: str, host_path: str, dependency_of: tuple[str, ...] = ()) -> N
 
 
 def base(*extra: Node, app: Node | None = None) -> list[Node]:
-    return [rscope(), fscope(), app or member("/r/app", f"{H}/org/app"), forge(f"{H}/org/app"), *extra]
+    return [gscope(), rscope(), fscope(), app or member("/r/app", f"{H}/org/app"), forge(f"{H}/org/app"), *extra]
 
 
 def run(nodes: list[Node], check: dict | None = None):
@@ -208,7 +212,7 @@ def test_resource_consumers_without_dependency_of_yield_one_item_each() -> None:
 
 
 def test_forge_skipped_treats_every_local_repo_as_live() -> None:
-    nodes = [rscope(), member("/r/app", f"{H}/org/app")]
+    nodes = [gscope(), rscope(), member("/r/app", f"{H}/org/app")]
     report = run(nodes)
     assert any(s.startswith("forge") for s in report.skipped)
     assert report.counts["members"] == 1
@@ -251,3 +255,20 @@ def test_host_aliases_map_local_slugs_onto_the_forge_host() -> None:
     app = member("/r/app", "gh-alias/org/app")
     report = run(base(app=app), {"host_aliases": {"gh-alias": H}})
     assert report.items == []
+
+
+def test_unread_registry_computes_no_drift(tmp_path) -> None:
+    mirror = tmp_path / "list.md"
+    mirror.write_text("`app`\n`tool`\n", encoding="utf-8")
+    nodes = [rscope(), fscope(), forge(f"{H}/org/app")]  # the registry source failed: no registry scope
+    report = run(nodes, {"mirrors": [{"path": str(mirror), "pattern": "`([a-z]+)`"}]})
+    assert report.items == []
+    assert [s.split(" ")[0] for s in report.skipped] == ["registry"]
+
+
+def test_members_sharing_a_declared_name_keep_their_own_resource_refs() -> None:
+    first = member("/r/app", f"{H}/org/app", declared="same", depends=("resource:missing-a",))
+    second = member("/r/b", f"{H}/org/b", declared="same", depends=("resource:missing-b",))
+    report = run(base(second, forge(f"{H}/org/b"), app=first))
+    assert sorted(i.subject for i in of(report, "dangling-dependency")) == ["missing-a", "missing-b"]
+    assert report.counts["dependencies"] == 2

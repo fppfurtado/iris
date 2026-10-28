@@ -17,8 +17,9 @@ On a query whose kinds include ``universe``, the source also scans the configure
 ``depth`` levels, default 2) and adds every checkout found there with ``origin="disk"``: a directory is a
 checkout iff it holds a ``.git`` directory (a ``.git`` file is a linked worktree, skipped); the scan never
 descends into a checkout or a ``.worktrees`` directory and follows no symlink; a root that is itself a
-checkout counts as one. It also emits one ``scope`` node per configured root (``attrs.read`` says whether
-the root could be scanned), so a composer can tell an unscanned dimension from an empty one. Without
+checkout counts as one. It also emits a ``scope`` node for the registry it read and one per configured root
+(``attrs.read`` says whether the root could be scanned), so a composer can tell an unread dimension — a
+failed read emits no registry scope — from an empty one. Without
 ``universe`` the scan never runs and the repo set is the registry's alone.
 """
 
@@ -143,6 +144,15 @@ class ConstellationSource:
             if not self._add_repo(repo, attrs, nodes, relations):
                 missing += 1
         if query.kinds is not None and KIND_UNIVERSE in query.kinds:
+            nodes.append(
+                Node(
+                    id=f"registry:{mrconfig}",
+                    kind="scope",
+                    title=str(mrconfig),
+                    source=self.name,
+                    attrs={"dimension": "registry", "read": True},
+                )
+            )
             registered = {os.path.realpath(repo) for repo, _ in entries}
             for root_opt in self._roots:
                 root = Path(os.path.expanduser(root_opt))

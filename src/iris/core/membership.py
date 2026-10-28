@@ -93,6 +93,12 @@ def compose_membership(result: FederationResult, check: dict) -> DriftReport:
     forge = [n for n in repos if n.attrs.get("origin") == "forge"]
 
     # --- dimensions --------------------------------------------------------------------------------
+    # Every kind rests on the registry read: without it the local universe is unknown, so any item would
+    # be computed against an empty side (e.g. every mirror name reported stale). Report nothing instead.
+    if not any(s.attrs.get("dimension") == "registry" and s.attrs.get("read") for s in scopes):
+        report.skipped.append("registry — the repo registry was not read (see the source notes); no drift computed")
+        report.counts = dict.fromkeys(("members", "archived", "excluded", "resources", "dependencies"), 0)
+        return report
     forge_scopes = [s for s in scopes if s.attrs.get("dimension") == "forge"]
     read_scopes = {
         (s.attrs.get("host", ""), s.attrs.get("org", "")) for s in forge_scopes if s.attrs.get("read")
@@ -101,7 +107,10 @@ def compose_membership(result: FederationResult, check: dict) -> DriftReport:
     unread = [s.title for s in forge_scopes if not s.attrs.get("read")]
     forge_complete = bool(forge_scopes) and not unread
     if not forge_scopes:
-        report.skipped.append("forge — no forge-repos source configured; archived state unknown, every local repo treated as live")
+        report.skipped.append(
+            "forge — no forge-repos source read (none configured, or it failed — see the source notes); "
+            "archived state unknown, every local repo treated as live"
+        )
     elif unread:
         report.skipped.append(f"forge — incomplete, not read: {', '.join(unread)}; forge comparisons bounded to the orgs read")
 
@@ -128,9 +137,6 @@ def compose_membership(result: FederationResult, check: dict) -> DriftReport:
         local_by_slug.setdefault(slug_of(n), []).append(n)
     local_by_path = {str(n.attrs.get("path")): n for n in local}
     members = [n for n in local if n.attrs.get("descriptor") and slug_of(n) not in archived]
-    member_by_entity = {
-        str(n.attrs.get("declared_name") or _name(slug_of(n))): n for n in members
-    }
 
     # --- local / registry kinds --------------------------------------------------------------------
     for n in local:
@@ -181,7 +187,8 @@ def compose_membership(result: FederationResult, check: dict) -> DriftReport:
             items.append(DriftItem("archived-host", r.id, f"host repo {slug_of(host)} is archived"))
     consumers: dict[str, set[str]] = {}
     dependencies = 0
-    for entity, n in member_by_entity.items():
+    for n in members:
+        entity = str(n.attrs.get("declared_name") or _name(slug_of(n)))
         for ref in n.attrs.get("depends_on") or []:
             kind, _, target = parse_entity_ref(ref)
             if kind != "resource":

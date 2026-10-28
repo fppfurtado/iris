@@ -81,16 +81,7 @@ def parse_refs(text: str) -> list[Ref]:
 
 def repo_paths(mrconfig: Path) -> list[Path]:
     """Parse ``mrconfig`` section headers into absolute repo paths."""
-    text = mrconfig.read_text(encoding="utf-8")
-    paths: list[Path] = []
-    for match in _SECTION.finditer(text):
-        name = match.group("name").strip()
-        if name in _NON_REPO_SECTIONS:
-            continue
-        expanded = os.path.expandvars(os.path.expanduser(name))
-        if os.path.isabs(expanded) or "/" in expanded:
-            paths.append(Path(expanded))
-    return paths
+    return [path for path, _ in repo_entries(mrconfig)]
 
 
 def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:

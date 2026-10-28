@@ -93,3 +93,19 @@ def test_repos_output_unaffected_by_forge_and_roots(tmp_path) -> None:
     plain = _invoke(_world(tmp_path / "p", with_bare=True, forge_and_roots=False), "repos")
     assert full.exit_code == 0 and plain.exit_code == 0
     assert full.stdout == plain.stdout
+
+
+def test_unreadable_registry_exits_2_without_false_drift(tmp_path) -> None:
+    config = _world(tmp_path, with_bare=False)
+    (tmp_path / ".mrconfig").unlink()
+    mirror = tmp_path / "members.md"
+    mirror.write_text("`app`\n", encoding="utf-8")
+    config.write_text(
+        config.read_text(encoding="utf-8")
+        + f'\n[[check.mirrors]]\npath = "{mirror}"\npattern = "`([a-z]+)`"\n',
+        encoding="utf-8",
+    )
+    result = _invoke(config, "check", repos="app")
+    assert result.exit_code == 2, result.output
+    assert "## " not in result.stdout
+    assert "registry" in result.stderr

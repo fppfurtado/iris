@@ -108,3 +108,24 @@ def test_local_node_with_descriptor_carries_declared_name(tmp_path) -> None:
     attrs = _repos(_source(tmp_path, roots=[str(root)]).read(UNIVERSE))[str(repo)]
     assert attrs["descriptor"] is True
     assert attrs["declared_name"] == "declared"
+
+
+def test_universe_query_records_the_registry_it_read(tmp_path) -> None:
+    scopes = [n for n in _source(tmp_path).read(UNIVERSE).nodes if n.kind == "scope"]
+    assert [(n.attrs["dimension"], n.attrs["read"]) for n in scopes] == [("registry", True)]
+
+
+def test_scan_does_not_follow_symlinks(tmp_path) -> None:
+    real = _checkout(tmp_path / "elsewhere" / "target")
+    root = tmp_path / "src"
+    root.mkdir()
+    (root / "link").symlink_to(real.parent, target_is_directory=True)
+    (root / "repo-link").symlink_to(real, target_is_directory=True)
+    assert _repos(_source(tmp_path, roots=[str(root)]).read(UNIVERSE)) == {}
+
+
+def test_default_depth_is_two(tmp_path) -> None:
+    root = tmp_path / "src"
+    shallow = _checkout(root / "a" / "b")
+    _checkout(root / "a" / "b2" / "c")
+    assert set(_repos(_source(tmp_path, roots=[str(root)]).read(UNIVERSE))) == {str(shallow)}
