@@ -178,3 +178,72 @@ def test_context_does_not_scatter_a_multi_repo_task_under_unqueried_repos(tmp_pa
     header_lines = result.output.splitlines()
     assert "alpha" in header_lines
     assert "beta" not in header_lines
+
+
+# --- SP-T6: `iris inbound` — item state ⋈ citing records -----------------------------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+import iris.cli as cli  # noqa: E402
+from iris.core.federation import FederationResult  # noqa: E402
+from iris.core.model import Node  # noqa: E402
+
+_FAKE_CONFIG = SimpleNamespace(sources=[])
+
+_ITEM = Node(id="iris#34", kind="issue", title="database as a source", roles=["open"], source="tracker")
+_TASK = Node(id="8g58ft", kind="task", title="chase iris#34 in a TJPA session\nmore", roles=["open"], source="gtd")
+_CITE = Node(id="journal/2026-09-04.md#a-block", kind="citation", title="journal/2026-09-04.md#a-block",
+             roles=["refs"], source="notes")
+
+
+def _canned(monkeypatch, module, state=None, citing=None):
+    """Fake the two federation passes: the chain pass returns `state`, the inbound pass `citing`."""
+    def fake_federate(config, query, *a, **k):
+        if "inbound" in query.kinds:
+            return citing or FederationResult()
+        assert "chain" in query.kinds
+        return state or FederationResult()
+
+    monkeypatch.setattr(module, "federate", fake_federate)
+    monkeypatch.setattr(module, "_load_config" if module is cli else "active_config", lambda *a, **k: _FAKE_CONFIG)
+
+
+def test_cli_inbound_renders_item_tasks_and_citations(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK, _CITE]))
+    result = runner.invoke(cli.app, ["inbound", "iris#34"])
+    assert result.exit_code == 0
+    out = result.stdout
+    assert "## item\niris#34  [open]  database as a source" in out
+    assert "## tasks citing iris#34\n^8g58ft  [open]  chase iris#34 in a TJPA session\n" in out
+    assert "## citations\njournal/2026-09-04.md#a-block  [refs]" in out
+    assert "## unknown" not in out  # an empty section is omitted
+
+
+def test_cli_inbound_unresolved_item_and_empty_sections_omitted(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(), FederationResult(nodes=[_CITE]))
+    out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "iris#34  unknown — could not resolve" in out
+    assert "## tasks citing" not in out
+
+
+def test_cli_inbound_unknown_source_never_claims_no_records(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(), FederationResult(degraded=["notes"], notes=["notes: degraded"]))
+    result = runner.invoke(cli.app, ["inbound", "iris#34"])
+    assert result.exit_code == 0
+    assert "## unknown\nnotes" in result.stdout
+    assert "no records cite" not in result.output
+
+
+def test_cli_inbound_nothing_cites_and_nothing_unknown(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult())
+    result = runner.invoke(cli.app, ["inbound", "iris#34"])
+    assert result.exit_code == 0
+    assert "# no records cite iris#34" in result.stderr
+
+
+def test_cli_inbound_invalid_key_exits_2(monkeypatch):
+    _canned(monkeypatch, cli)
+    for bad in ["see iris#34", "iris#3 iris#4", ""]:
+        result = runner.invoke(cli.app, ["inbound", bad])
+        assert result.exit_code == 2, bad
+        assert "invalid key" in result.stderr

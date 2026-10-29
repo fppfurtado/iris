@@ -106,3 +106,61 @@ def test_mcp_context_returns_tasks_join_matching_cli(tmp_path, monkeypatch) -> N
     cli_out = CliRunner().invoke(app, ["context", "some task"]).output
     assert "task ^k9" in cli_out
     assert "work meta-system#7 soon" in cli_out
+
+
+# --- SP-T6: MCP `inbound` — the same records as the CLI, off the same composer ---------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+import iris.cli as cli  # noqa: E402
+import iris.mcp_adapter as mcp_adapter  # noqa: E402
+from iris.core.federation import FederationResult  # noqa: E402
+from iris.core.model import Node  # noqa: E402
+
+_FAKE_CONFIG = SimpleNamespace(sources=[])
+
+_ITEM = Node(id="iris#34", kind="issue", title="database as a source", roles=["open"], source="tracker")
+_TASK = Node(id="8g58ft", kind="task", title="chase iris#34 in a TJPA session\nmore", roles=["open"], source="gtd")
+_CITE = Node(id="journal/2026-09-04.md#a-block", kind="citation", title="journal/2026-09-04.md#a-block",
+             roles=["refs"], source="notes")
+
+
+def _canned(monkeypatch, module, state=None, citing=None):
+    """Fake the two federation passes: the chain pass returns `state`, the inbound pass `citing`."""
+    def fake_federate(config, query, *a, **k):
+        if "inbound" in query.kinds:
+            return citing or FederationResult()
+        assert "chain" in query.kinds
+        return state or FederationResult()
+
+    monkeypatch.setattr(module, "federate", fake_federate)
+    monkeypatch.setattr(module, "_load_config" if module is cli else "active_config", lambda *a, **k: _FAKE_CONFIG)
+
+
+async def _call_inbound(key: str) -> dict:
+    async with Client(mcp) as client:
+        result = await client.call_tool("inbound", {"key": key})
+    sc = result.structured_content
+    return sc.get("result", sc)
+
+
+def test_mcp_inbound_returns_the_same_records_as_the_cli(monkeypatch):
+    state = FederationResult(nodes=[_ITEM])
+    citing = FederationResult(nodes=[_TASK, _CITE], degraded=["tracker"])
+    _canned(monkeypatch, mcp_adapter, state, citing)
+    _canned(monkeypatch, cli, state, citing)
+
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert data["key"] == "iris#34" and data["item"]["id"] == "iris#34"
+    assert [t["id"] for t in data["tasks"]] == ["8g58ft"]
+    assert [c["id"] for c in data["citations"]] == ["journal/2026-09-04.md#a-block"]
+    assert data["unknown"] == ["tracker"]
+
+    out = CliRunner().invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "^8g58ft" in out and "journal/2026-09-04.md#a-block" in out and "## unknown\ntracker" in out
+
+
+def test_mcp_inbound_invalid_key_returns_error(monkeypatch):
+    _canned(monkeypatch, mcp_adapter)
+    data = asyncio.run(_call_inbound("not a key"))
+    assert "error" in data
