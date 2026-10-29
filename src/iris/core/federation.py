@@ -23,6 +23,9 @@ class FederationResult:
     relations: list[Relation] = field(default_factory=list)
     hits: list[GroundHit] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # The names of the sources that raised or returned ``ok=False`` — so a composer can mark a source
+    # UNKNOWN by name instead of parsing ``notes``.
+    degraded: list[str] = field(default_factory=list)
 
 
 def federate(config: Config, query: Query, registry: Registry = DEFAULT) -> FederationResult:
@@ -43,6 +46,7 @@ def federate(config: Config, query: Query, registry: Registry = DEFAULT) -> Fede
             part = source.read(query)
         except Exception as exc:  # per-source isolation (PR5 cross-cutting)
             result.notes.append(f"{source.name}: failed ({exc})")
+            result.degraded.append(source.name)
             continue
         result.nodes.extend(part.nodes)
         result.relations.extend(part.relations)
@@ -51,4 +55,5 @@ def federate(config: Config, query: Query, registry: Registry = DEFAULT) -> Fede
             result.notes.append(f"{source.name}: {part.note}")
         if not part.ok:
             result.notes.append(f"{source.name}: degraded")
+            result.degraded.append(source.name)
     return result

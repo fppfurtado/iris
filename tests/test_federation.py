@@ -43,6 +43,31 @@ def test_federate_isolates_a_failing_source() -> None:
     assert any("boom" in note and "failed" in note for note in result.notes)
 
 
+class _Degraded:
+    name = "flaky"
+
+    def read(self, query: Query) -> SourceResult:
+        return SourceResult(ok=False, note="half the store was unreadable")
+
+
+def test_federate_names_raising_and_not_ok_sources_in_degraded() -> None:
+    # SP-T4: a source that raises or returns ok=False is named in `degraded`, notes unchanged.
+    reg = Registry()
+    reg.register("boom", lambda name, opts: _Boom())
+    reg.register("flaky", lambda name, opts: _Degraded())
+    reg.register("good", lambda name, opts: _Good())
+    config = Config(sources=[SourceSpec("boom", {}), SourceSpec("flaky", {}), SourceSpec("good", {})])
+
+    result = federate(config, Query(), reg)
+
+    assert result.degraded == ["boom", "flaky"]
+    assert result.notes == [
+        "boom: failed (nope)",
+        "flaky: half the store was unreadable",
+        "flaky: degraded",
+    ]
+
+
 def test_federation_skips_a_source_whose_kinds_are_not_wanted() -> None:
     calls: list[str] = []
 
