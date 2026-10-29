@@ -221,7 +221,8 @@ def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `
     if composed.citations:
         typer.echo("## citations")
         for node in composed.citations:
-            typer.echo(f"{node.id}  [{'/'.join(node.roles)}]")
+            link = f"  [{'/'.join(node.roles)}]" if node.roles else ""
+            typer.echo(f"{node.id}{link}")
     if composed.unknown:
         typer.echo("## unknown")
         for name in composed.unknown:

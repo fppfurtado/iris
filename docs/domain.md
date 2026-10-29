@@ -27,8 +27,8 @@ frozen value objects and exposes no write path to any source.
 
 ### Composition
 - **Definition:** deriving a joined, cross-source unit from the federated results (e.g. `repo ⋈ open-issues`,
-  `repo ⋈ referencing-tasks`, `item ⋈ referenced-nodes`) — the value iris adds over calling each source
-  directly.
+  `repo ⋈ referencing-tasks`, `item ⋈ referenced-nodes`, `item ⋈ citing-records`) — the value iris adds over
+  calling each source directly.
 - **Relations:** operates on a `FederationResult`; the seam rule (BR01) assigns it to iris, not to any source.
 - **Aliases/Synonyms:** the seam; cross-source join.
 
@@ -131,7 +131,14 @@ frozen value objects and exposes no write path to any source.
   store field but derived from the `<repo>#<number>` references in the task's text (BR06: identity, not a
   carried key); a task naming no repo stays outside the join. In a `chain` read a SPECIFICALLY-REFERENCED
   anchor (`^<id>`) is resolved regardless of state, carrying its lifecycle state (`roles=["open"]` |
-  `["done"]`).
+  `["done"]`). In an `inbound` read every task, open and done, whose parsed refs contain the item's key is
+  modeled with its list state; the item itself is never its own citing task.
+
+### Citation
+- **Parent:** Node (`kind="citation"`).
+- **Definition:** a record a knowledge source returns as citing an item (a journal block, a note),
+  identified by the store's own locator and carrying the link type in `roles`. Which records cite the item
+  is the store's within-source resolution (BR01): iris passes the key through and does not re-match them.
 
 ## Aggregates and Entities
 

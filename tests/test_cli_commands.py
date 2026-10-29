@@ -247,3 +247,10 @@ def test_cli_inbound_invalid_key_exits_2(monkeypatch):
         result = runner.invoke(cli.app, ["inbound", bad])
         assert result.exit_code == 2, bad
         assert "invalid key" in result.stderr
+
+
+def test_cli_inbound_citation_without_link_type_has_no_empty_brackets(monkeypatch):
+    bare = Node(id="notes/d.md", kind="citation", title="notes/d.md", roles=[], source="notes")
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[bare]))
+    out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "## citations\nnotes/d.md\n" in out
