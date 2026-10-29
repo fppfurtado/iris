@@ -29,7 +29,7 @@ kinds={inbound} (the records citing the key) → compose_inbound → InboundCont
   module/package: the same context, no ceremony.
 - **Two federation passes, not one combined mode** — because each existing source already routes by kind with a
   single mode per read (BR07); a combined `{chain, inbound}` read would need a second mode-combination branch in
-  each source. Cost accepted: the task lists are read twice (≈4 knowledge-store CLI calls per `inbound` run).
+  each source. Cost accepted: the task lists are read twice (≈3–4 knowledge-store CLI calls per run: 3 for an issue key, 4 for an anchor key).
   Re-evaluate if that cost is felt (S1 latency is recorded in SP-T8).
 
 ### Data model
@@ -93,8 +93,10 @@ new cross-cutting rule is established.
   stanza is configured, the source SHALL substitute `{key}` and emit one `Node(kind="citation")` per returned
   record, minus records whose locator starts with a `skip` prefix"; "WHERE no `inbound` stanza is configured, the
   source's `produces` SHALL NOT contain `inbound` and federation SHALL NOT read it for an inbound query"; "IF the
-  command fails or returns a non-array, THEN the source SHALL return `ok=False` with a note, not raise" —
-  persisted tests in tests/test_cli_json_source.py — depends on: SP-T1
+  command fails or returns a non-array, THEN the source SHALL return `ok=False` with a note, not raise".
+  Identity (Brief:C3/S4) on this half is the store's own within-source resolution (BR01): the source passes the
+  key through and does not re-match records, because a citation record carries no text to parse. It is held by
+  SP-T8's prefix-pair fixtures, not by this task — persisted tests in tests/test_cli_json_source.py — depends on: SP-T1
 - SP-T4: `FederationResult.degraded` — implements Brief:J4, Brief:S3 — acceptance (EARS): "WHEN a source raises or
   returns `ok=False`, federation SHALL append its name to `degraded`, in addition to the existing notes" — persisted
   test in tests/test_federation.py — depends on: —
@@ -123,10 +125,21 @@ new cross-cutting rule is established.
   (captured 2026-10-29: `gh issue view`, `mneme task list` open+done, `mneme backlinks`), the composed tasks and
   citations SHALL equal the expected sets below, no extras and no misses"; "for iris#34 the result SHALL name task
   `^8g58ft` [open], where the recorded `backlinks` names only `knowledge/gtd.md`"; and a recorded latency of one
-  live `iris inbound iris#38` run in the test's docstring — persisted test tests/test_earn_datum.py (fixtures under
-  tests/fixtures/inbound/) — depends on: SP-T5
-  Expected sets (hand-assembled 2026-10-29; the parser-independent raw search `grep -rlE "iris#N([^0-9]|$)|
-  fppfurtado/iris/issues/N([^0-9]|$)" knowledge journal` returned the same FILES in every case):
+  live `iris inbound iris#38` run in the test's docstring; "WHEN the recorded prefix pairs run — `iris#1` vs
+  `iris#12` and `iris#3` vs `iris#34` (probe 2026-10-29: 0 vs 5 and 0 vs 4 citation records) — the shorter key's
+  result SHALL contain none of the longer key's tasks or citations" (Brief:C3/S4 on BOTH halves) — persisted test
+  tests/test_earn_datum.py (fixtures under tests/fixtures/inbound/) — depends on: SP-T5
+  Deliverable, before the expected sets are trusted: a **record-level, parser-independent oracle**
+  (tests/fixtures/inbound/oracle.py, run against the recorded store snapshot): it finds every raw line in the
+  journal and notes citing the key in three forms — `<repo>#<n>`, the forge URL `<host>/<owner>/<repo>/(issues|pull)/<n>`,
+  and a bare `#<n>` — and maps each to the store block that contains it. It MUST pass a positive control first:
+  a line known to sit inside a block that `backlinks` returned maps as covered. Every raw line outside all
+  returned blocks is listed: as a MISS (it fails SP-T8), or as out of identity under Brief:C3 (the bare `#<n>` and
+  URL forms, which neither the store nor `parse_refs` resolves — recorded in the test with the line). Status
+  2026-10-29: a file-level check (`grep -l`) agreed on every item, which cannot see a second block in a matched
+  file; a first block-level attempt FAILED its positive control (heading-slug matching), so record-level
+  agreement is not yet shown.
+  Expected sets (hand-assembled 2026-10-29 from the store reads; to be confirmed by the oracle above):
   - iris#5 — tasks: none · citations: journal 2026-08-14, 2026-09-06, 2026-09-10 (1 block each) + note
     `iris-dogfood-publish-hold-decision-state` (4 records)
   - iris#29 — tasks: none · citations: 7 records over journal 2026-09-05, -06, -08, -09 + the same note
@@ -139,8 +152,8 @@ new cross-cutting rule is established.
 - J1 → SP-T1 (key) + SP-T5 (state, via the existing chain reads)
 - J2 → SP-T2 · J3 → SP-T3 · J4 → SP-T4, SP-T5 · J5 → SP-T6, SP-T7
 - C1 → Architecture (composition in the layer; within-source reads stay in the sources) · C2 → SP-T3, SP-T4,
-  Cross-cutting · C3 → SP-T1, SP-T2
-- S1 → SP-T8 · S2 → SP-T5, SP-T8 · S2b → SP-T2, SP-T8 · S3 → SP-T4, SP-T5, SP-T6 · S4 → SP-T2, SP-T8
+  Cross-cutting · C3 → SP-T1, SP-T2 (tasks), SP-T3 + SP-T8 (citations: the store's identity, held by fixtures)
+- S1 → SP-T8 · S2 → SP-T5, SP-T8 · S2b → SP-T2, SP-T8 · S3 → SP-T4, SP-T5, SP-T6 · S4 → SP-T2 (tasks), SP-T8 (both halves, prefix pairs)
 - No task without a Brief item.
 
 ## Deliberate exclusions (from the Brief)
@@ -155,6 +168,10 @@ new cross-cutting rule is established.
 - When mneme#343 lands, `backlinks` may return the task blocks too, duplicating SP-T2's tasks under another
   locator — mitigation: the `skip` prefix already drops the task file; re-check SP-T8 then (S2b expires by the
   Brief's own statement).
+- If the SP-T8 oracle finds a MISS (a raw `<repo>#<n>` line outside every block the store returned), the gap is
+  in the store's inbound-link index, not in this composition, which only carries the store's answer: SP-T8
+  then fails by design, and the gap is filed upstream to the store (as N3 was) before the expected set is
+  amended — never by widening the expected set to match the output.
 - The `{key}` substitution passes `^anchor` / `repo#n` as one argv element (no shell) — no injection surface.
 
 ## Assumptions & invalidators
