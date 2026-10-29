@@ -1,10 +1,10 @@
 # Spec: item inbound context — `iris inbound <key>`
 
-- Frozen at: — (withheld, draft)
-- Spec version: — (withheld pending approval)
+- Frozen at: 2026-10-29
+- Spec version: v1
 - Source: Problem Brief `briefs/item-inbound-context.BRIEF.md` v1 (frozen 2026-10-29) — PRD skipped (a feature
   inside an existing product, the same path the F6-mínimo Spec took; tasks cite Brief J*/S* directly)
-- Status: DRAFT — freeze pending approval
+- Status: frozen after approval on 2026-10-29 (operator "sim" to "Freeze the Spec as v1?")
 - Amendments: none
 - Extends (not amends): `specs/f6-minimo-cross-repo-dep-chain.spec.md` v1 — reuses its ref parser
   (`parse_refs`) and the `chain`-mode reads of the `tracker` and `tasks` sources UNCHANGED to fetch the item's
