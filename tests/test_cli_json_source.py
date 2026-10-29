@@ -72,3 +72,79 @@ def test_default_runner_injects_iris_caller_into_subprocess_env(monkeypatch) -> 
     assert env["IRIS_CALLER"] == "iris"
     # generic: merged OVER a copy of the parent environment, not a special-cased one
     assert "PATH" in env
+
+
+# --- SP-T3: inbound mode — the records citing a key ----------------------------------------------
+
+from iris.config import Config, SourceSpec  # noqa: E402
+from iris.core.federation import federate  # noqa: E402
+from iris.core.registry import Registry  # noqa: E402
+from iris.core.source import KIND_HITS, KIND_INBOUND  # noqa: E402
+
+_INBOUND = {
+    "command": ["notes", "backlinks", "{key}", "--json"],
+    "items": "",
+    "map": {"locator": "source", "type": "type"},
+    "skip": ["lists/tasks.md"],
+}
+_RECORDS = json.dumps(
+    [
+        {"source": "journal/2026-09-08.md#a-block", "type": "refs"},
+        {"source": "lists/tasks.md", "type": "refs"},
+        {"source": "notes/decision.md", "type": "refs"},
+    ]
+)
+
+
+def test_inbound_substitutes_key_and_emits_citations_minus_skip() -> None:
+    seen: dict[str, list[str]] = {}
+
+    def runner(cmd: list[str]) -> str:
+        seen["cmd"] = cmd
+        return _RECORDS
+
+    src = CliJsonSource("notes", {**_OPTIONS, "inbound": _INBOUND}, runner=runner)
+    res = src.read(Query(text="iris#34", kinds=frozenset({KIND_INBOUND})))
+    assert res.ok
+    assert seen["cmd"] == ["notes", "backlinks", "iris#34", "--json"]
+    assert [(n.kind, n.id, n.title, n.roles) for n in res.nodes] == [
+        ("citation", "journal/2026-09-08.md#a-block", "journal/2026-09-08.md#a-block", ["refs"]),
+        ("citation", "notes/decision.md", "notes/decision.md", ["refs"]),
+    ]
+    assert res.hits == []
+
+
+def test_without_inbound_stanza_produces_lacks_inbound_and_is_not_read() -> None:
+    calls: list[list[str]] = []
+
+    def runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return json.dumps({"items": []})
+
+    plain = CliJsonSource("notes", _OPTIONS, runner=runner)
+    assert KIND_INBOUND not in plain.produces
+    assert KIND_INBOUND in CliJsonSource("notes", {**_OPTIONS, "inbound": _INBOUND}).produces
+
+    registry = Registry()
+    registry.register("cli-json", lambda name, opts: plain)
+    config = Config(sources=[SourceSpec(name="notes", type="cli-json", options={})])
+    federate(config, Query(text="iris#34", kinds=frozenset({KIND_INBOUND})), registry)
+    assert calls == []
+    # the hits path is unchanged for that instance
+    federate(config, Query(text="q", kinds=frozenset({KIND_HITS})), registry)
+    assert calls == [["notes", "search", "q", "--json"]]
+
+
+def test_inbound_failure_or_non_array_degrades_without_raising() -> None:
+    def boom(cmd: list[str]) -> str:
+        raise RuntimeError("store missing")
+
+    failed = CliJsonSource("notes", {**_OPTIONS, "inbound": _INBOUND}, runner=boom).read(
+        Query(text="iris#34", kinds=frozenset({KIND_INBOUND}))
+    )
+    assert not failed.ok and "unreadable" in failed.note and failed.nodes == []
+
+    shaped = CliJsonSource("notes", {**_OPTIONS, "inbound": _INBOUND}, runner=lambda cmd: '{"a": 1}').read(
+        Query(text="iris#34", kinds=frozenset({KIND_INBOUND}))
+    )
+    assert not shaped.ok and "not an array" in shaped.note
