@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from iris.core.federation import FederationResult
 from iris.core.model import Node
-from iris.sources._repos import parse_refs
+from iris.sources._repos import parse_key, parse_refs
 
 _HAS_OPEN_ISSUE = "has-open-issue"
 _HAS_TASK = "has-task"
@@ -198,4 +198,60 @@ def compose_referenced_nodes(item_text: str, result: FederationResult) -> Refere
         blocker_candidates=blocker_candidates,
         state_unknown=state_unknown,
         notes=list(result.notes),
+    )
+
+
+# --- item inbound context (iris#38 part 3): item ⋈ citing-records --------------------------------
+
+
+@dataclass(frozen=True)
+class InboundContext:
+    """The ``item ⋈ citing-records`` composition: the records in other sources that cite one item by its
+    parsed identity, joined to the item's live state.
+
+    ``item`` is the item's live state from the chain reads (``None`` when unresolved). ``tasks`` and
+    ``citations`` are the inbound pass's records. ``unknown`` names every source whose state or inbound
+    read degraded — a non-empty ``unknown`` means "no records cite the key" cannot be asserted.
+    """
+
+    key: str
+    item: Node | None = None
+    tasks: list[Node] = field(default_factory=list)
+    citations: list[Node] = field(default_factory=list)
+    unknown: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def compose_inbound(key: str, state: FederationResult, inbound: FederationResult) -> InboundContext:
+    """Join the item's live state (``state``, a ``chain`` pass) to the records citing it (``inbound``).
+
+    The item is the state node whose id is the key's node id (``<slug>#<n>`` or the anchor id). Tasks and
+    citations keep the inbound pass's source order, de-duplicated by (kind, id). A source degraded in
+    either pass is named in ``unknown``.
+    """
+    ref = parse_key(key)
+    item: Node | None = None
+    if ref is not None:
+        node_id = f"{ref.slug}#{ref.number}" if ref.kind == "issue" else str(ref.anchor)
+        item = next((n for n in state.nodes if n.id == node_id), None)
+    seen: set[tuple[str, str]] = set()
+    tasks: list[Node] = []
+    citations: list[Node] = []
+    for node in inbound.nodes:
+        if (node.kind, node.id) in seen:
+            continue
+        if node.kind == "task":
+            tasks.append(node)
+        elif node.kind == "citation":
+            citations.append(node)
+        else:
+            continue
+        seen.add((node.kind, node.id))
+    return InboundContext(
+        key=key.strip(),
+        item=item,
+        tasks=tasks,
+        citations=citations,
+        unknown=list(dict.fromkeys(state.degraded + inbound.degraded)),
+        notes=state.notes + inbound.notes,
     )

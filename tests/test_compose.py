@@ -167,3 +167,51 @@ def test_resolved_but_stateless_node_is_unknown_not_nonblocker():
     # it is resolved, but NOT among the non-blockers (state is unknown, not known-clear)
     assert "iris#5" in {n.id for n in chain.resolved}
     assert chain.state_unknown and not chain.unresolved  # a second unknown face, distinct from unresolved
+
+
+# --- SP-T5: compose_inbound — item ⋈ citing-records ---------------------------------------------
+
+from iris.core.compose import InboundContext, compose_inbound  # noqa: E402
+
+
+def _cite(locator: str) -> Node:
+    return Node(id=locator, kind="citation", title=locator, roles=["refs"], source="notes")
+
+
+def test_inbound_carries_item_state_and_records_in_source_order_deduped():
+    item = Node(id="iris#38", kind="issue", title="relevance-scope", roles=["open"], source="tracker")
+    state = FederationResult(nodes=[Node(id="iris#5", kind="issue", title="x", roles=["closed"]), item])
+    task = Node(id="8g58ft", kind="task", title="chase iris#38", roles=["open"], source="gtd")
+    inbound = FederationResult(
+        nodes=[_cite("j/2026-09-08.md#b"), task, _cite("notes/d.md"), _cite("j/2026-09-08.md#b"), task]
+    )
+
+    ctx = compose_inbound("iris#38", state, inbound)
+
+    assert isinstance(ctx, InboundContext)
+    assert ctx.key == "iris#38" and ctx.item == item
+    assert ctx.tasks == [task]
+    assert [c.id for c in ctx.citations] == ["j/2026-09-08.md#b", "notes/d.md"]
+    assert ctx.unknown == []
+
+
+def test_inbound_names_a_degraded_source_of_either_pass_in_unknown():
+    state = FederationResult(degraded=["tracker"], notes=["tracker: degraded"])
+    inbound = FederationResult(degraded=["notes", "tracker"], notes=["notes: degraded"])
+
+    ctx = compose_inbound("iris#38", state, inbound)
+
+    assert ctx.unknown == ["tracker", "notes"]
+    assert ctx.notes == ["tracker: degraded", "notes: degraded"]
+
+
+def test_inbound_item_is_none_when_state_pass_resolved_nothing():
+    ctx = compose_inbound("^8g58ft", FederationResult(), FederationResult(nodes=[_cite("j/a.md#b")]))
+    assert ctx.item is None
+    assert [c.id for c in ctx.citations] == ["j/a.md#b"]
+
+
+def test_inbound_anchor_key_resolves_the_task_node():
+    task = Node(id="8g58ft", kind="task", title="t", roles=["open"], source="gtd")
+    ctx = compose_inbound(" ^8g58ft ", FederationResult(nodes=[task]), FederationResult())
+    assert ctx.item == task and ctx.key == "^8g58ft"
