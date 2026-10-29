@@ -15,9 +15,10 @@ from fastmcp import FastMCP
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris._present import relevant_repos
 from iris.config import Config, active_config
-from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
+from iris.core.compose import compose_inbound, compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import federate
-from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, Query
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_INBOUND, KIND_NODES, Query
+from iris.sources._repos import parse_key
 from iris.telemetry import log_request
 
 mcp = FastMCP("iris")
@@ -119,6 +120,35 @@ def chain(item: str) -> dict:
         # not be resolved at all, and refs resolved but whose state was undetermined.
         "unknown_unresolved": list(composed.unresolved),
         "unknown_state": [asdict(n) for n in composed.state_unknown],
+        "notes": composed.notes,
+    }
+
+
+@mcp.tool()
+def inbound(key: str) -> dict:
+    """Show what cites one item (`<repo>#<n>` or `^<anchor>`), joined to its live state, off the SAME
+    composer the CLI uses (read-only). `unknown` names every source that could not be read — a consumer
+    must never read empty `tasks`/`citations` as 'nothing cites it' while `unknown` is non-empty."""
+    if parse_key(key) is None:
+        return {"error": f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`"}
+    config = active_config()
+    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})))
+    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})))
+    composed = compose_inbound(key, state, citing)
+    log_request(
+        "inbound",
+        key,
+        hits=0,
+        nodes=len(composed.tasks) + len(composed.citations),
+        sources=_source_names(config),
+        extra={"unknown": len(composed.unknown)},
+    )
+    return {
+        "key": composed.key,
+        "item": asdict(composed.item) if composed.item is not None else None,
+        "tasks": [asdict(n) for n in composed.tasks],
+        "citations": [asdict(n) for n in composed.citations],
+        "unknown": list(composed.unknown),
         "notes": composed.notes,
     }
 

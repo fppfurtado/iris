@@ -79,6 +79,20 @@ def parse_refs(text: str) -> list[Ref]:
     return ordered
 
 
+def parse_key(key: str) -> Ref | None:
+    """The single :class:`Ref` an item KEY names — the input of ``iris inbound``.
+
+    The whole stripped input must be exactly one ``<repo>#<n>`` or ``^<anchor>``, by the same patterns
+    ``parse_refs`` uses; empty input, several refs, or any other text → ``None``.
+    """
+    text = key.strip()
+    if m := _REPO_REF.fullmatch(text):
+        return Ref(kind="issue", slug=m.group(1), number=int(m.group(2)))
+    if m := _ANCHOR_REF.fullmatch(text):
+        return Ref(kind="anchor", anchor=m.group(1))
+    return None
+
+
 def repo_paths(mrconfig: Path) -> list[Path]:
     """Parse ``mrconfig`` section headers into absolute repo paths."""
     return [path for path, _ in repo_entries(mrconfig)]

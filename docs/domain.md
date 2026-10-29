@@ -27,8 +27,8 @@ frozen value objects and exposes no write path to any source.
 
 ### Composition
 - **Definition:** deriving a joined, cross-source unit from the federated results (e.g. `repo ⋈ open-issues`,
-  `repo ⋈ referencing-tasks`, `item ⋈ referenced-nodes`) — the value iris adds over calling each source
-  directly.
+  `repo ⋈ referencing-tasks`, `item ⋈ referenced-nodes`, `item ⋈ citing-records`) — the value iris adds over
+  calling each source directly.
 - **Relations:** operates on a `FederationResult`; the seam rule (BR01) assigns it to iris, not to any source.
 - **Aliases/Synonyms:** the seam; cross-source join.
 
@@ -42,6 +42,14 @@ frozen value objects and exposes no write path to any source.
 - **Relations:** the referencing edge (an item *references* a node) is realized STRUCTURALLY by chain
   membership, not stored as a `Relation` — the referencing item has no persisted node identity to be a
   relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).
+
+### InboundContext
+- **Definition:** the `item ⋈ citing-records` composition (iris#38 part 3) — the records in other sources
+  that cite one item by its parsed identity, joined to the item's live state; a degraded source is unknown,
+  never "no citations".
+- **Relations:** the item is keyed by one `<repo>#<n>` or `^<id>` (BR06). Its live state comes from the
+  `chain` reads; the citing records from the `inbound` reads — tasks whose parsed refs contain the key, and
+  the store's own citation records (the store resolves which of its records cite the key, BR01).
 
 ### Node
 - **Definition:** a federated entity — a repo, a resource, a system, a concept, an issue — with `id`, `kind`,
@@ -62,9 +70,10 @@ frozen value objects and exposes no write path to any source.
 
 ### Kind
 - **Definition:** a result-kind label declaring what a source emits / a caller consumes (`nodes`, `hits`,
-  `chain`, `universe`). `chain` = the live state of the SPECIFIC nodes an item references (issues incl.
-  closed, anchors incl. done), distinct from `nodes` (a repo's open satellites). `universe` = every repo a
-  source can see beyond the registry (see Universe).
+  `chain`, `universe`, `inbound`). `chain` = the live state of the SPECIFIC nodes an item references (issues
+  incl. closed, anchors incl. done), distinct from `nodes` (a repo's open satellites). `universe` = every
+  repo a source can see beyond the registry (see Universe). `inbound` = the records that CITE one item (see
+  InboundContext) — the reverse direction of `chain`.
 - **Relations:** drives kind-aware federation (BR07) — a source producing none of a query's kinds is skipped.
 
 ### Identity
@@ -122,7 +131,14 @@ frozen value objects and exposes no write path to any source.
   store field but derived from the `<repo>#<number>` references in the task's text (BR06: identity, not a
   carried key); a task naming no repo stays outside the join. In a `chain` read a SPECIFICALLY-REFERENCED
   anchor (`^<id>`) is resolved regardless of state, carrying its lifecycle state (`roles=["open"]` |
-  `["done"]`).
+  `["done"]`). In an `inbound` read every task, open and done, whose parsed refs contain the item's key is
+  modeled with its list state; the item itself is never its own citing task.
+
+### Citation
+- **Parent:** Node (`kind="citation"`).
+- **Definition:** a record a knowledge source returns as citing an item (a journal block, a note),
+  identified by the store's own locator and carrying the link type in `roles`. Which records cite the item
+  is the store's within-source resolution (BR01): iris passes the key through and does not re-match them.
 
 ## Aggregates and Entities
 

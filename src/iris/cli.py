@@ -9,11 +9,12 @@ import typer
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
 from iris._present import relevant_repos
-from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
+from iris.core.compose import compose_inbound, compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import FederationResult, federate
 from iris.core.membership import compose_membership
 from iris.core.model import Node
-from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, KIND_UNIVERSE, Query
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_INBOUND, KIND_NODES, KIND_UNIVERSE, Query
+from iris.sources._repos import parse_key
 from iris.telemetry import log_request
 
 app = typer.Typer(
@@ -189,6 +190,55 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
             "blocker_candidates": len(composed.blocker_candidates),
             "unresolved": len(composed.unresolved),
         },
+    )
+
+
+@app.command()
+def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `^<anchor>`.")) -> None:
+    """Show what cites one item, joined to its live state (read-only).
+
+    Reads the item's state, the tasks whose text references it, and the store records that link to it.
+    A source that could not be read is listed under UNKNOWN — never folded into 'no citations'.
+    """
+    if parse_key(key) is None:
+        typer.echo(f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`", err=True)
+        raise typer.Exit(2)
+    config = _load_config()
+    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})))
+    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})))
+    composed = compose_inbound(key, state, citing)
+
+    typer.echo("## item")
+    if composed.item is None:
+        typer.echo(f"{composed.key}  unknown — could not resolve")
+    else:
+        roles = f"  [{'/'.join(composed.item.roles)}]" if composed.item.roles else ""
+        typer.echo(f"{composed.key}{roles}  {_oneline(composed.item.title)}")
+    if composed.tasks:
+        typer.echo(f"## tasks citing {composed.key}")
+        for node in composed.tasks:
+            typer.echo(f"^{node.id}  [{'/'.join(node.roles)}]  {_oneline(node.title)}")
+    if composed.citations:
+        typer.echo("## citations")
+        for node in composed.citations:
+            link = f"  [{'/'.join(node.roles)}]" if node.roles else ""
+            typer.echo(f"{node.id}{link}")
+    if composed.unknown:
+        typer.echo("## unknown")
+        for name in composed.unknown:
+            typer.echo(name)
+    elif not composed.tasks and not composed.citations:
+        typer.echo(f"# no records cite {composed.key}", err=True)
+
+    for note in composed.notes:
+        typer.echo(f"# {note}", err=True)
+    log_request(
+        "inbound",
+        key,
+        hits=0,
+        nodes=len(composed.tasks) + len(composed.citations),
+        sources=_source_names(config),
+        extra={"unknown": len(composed.unknown)},
     )
 
 
