@@ -31,6 +31,10 @@ KIND_CHAIN = "chain"
 # than the registry alone. Only sources that widen the repo set declare it; a query without it never pays
 # for a disk scan or a forge call.
 KIND_UNIVERSE = "universe"
+# The inbound kind (item inbound context, iris#38 part 3): a caller (``inbound``) consuming the records that
+# CITE a given key — the tasks whose text references it and the store records that link to it — the reverse
+# direction of ``KIND_CHAIN``. Only sources that can answer "who cites this key" declare it.
+KIND_INBOUND = "inbound"
 
 
 @dataclass(frozen=True)
