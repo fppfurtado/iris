@@ -2,12 +2,34 @@
 name = "iris"
 version = "0.1.0"
 description = "Sovereign, read-only agent-context layer: federate context sources and serve them to agents via CLI + MCP."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Fernando Furtado", email = "fppfurtado@outlook.com" }]
+keywords = ["agents", "mcp", "context", "federation", "cli", "read-only"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12",
     "pyyaml>=6",
     "fastmcp>=2,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/fppfurtado/iris"
+Repository = "https://github.com/fppfurtado/iris"
+Issues = "https://github.com/fppfurtado/iris/issues"
 
 [project.scripts]
 iris = "iris.cli:main"
