@@ -1,20 +1,20 @@
-"""``tasks`` source — open task-list items from a knowledge base, keyed to repos by identity.
+"""``tasks`` source — task-list items from a knowledge base, keyed to repos and items by identity.
 
-The cross-source companion to ``tracker``: where the tracker brings a repo's open *issues*, this brings
-the open *tasks* (a GTD/next-action list) that REFERENCE a repo — so ``context`` can join, under one
-repo, both its open issues (from the forge) and the standing tasks about it (from the KB). The manual
-composition this removes: reading the task list and the issue backlog separately and crossing them by
-hand to see which tasks land on which repo (iris#29, the validated-need that earned this read).
+The cross-source companion to ``tracker``. It reads in three modes, chosen by the query's kinds (BR07):
 
-Source-agnostic by construction (BR02): the config declares WHICH CLI lists the tasks and how to map
-its JSON — never a store/instance. A task's repo linkage is not a field the KB carries; it is written
-into the task TEXT as a ``<repo>#<number>`` reference (e.g. ``iris#29``). This source extracts those
-references and emits a ``Relation(<repo-identity>, "has-task", <task id>)`` per referenced repo, leaving
-the matched/unmatched decision to the composer (BR06) — exactly as the tracker emits ``has-open-issue``
-and the composer resolves it against the repo nodes. A task with no reference contributes a node but no
-relation (it is simply outside the cross-source join, never noise in it). The subprocess runner is
-injected so normalization is testable without the CLI installed; a failed read degrades this source into
-a note rather than a raise that sinks the federation (BR04).
+- ``context`` (``nodes``): the OPEN tasks that REFERENCE a repo, so ``context`` can join under one repo
+  both its open issues (from the forge) and the standing tasks about it (iris#29). A task's repo linkage is
+  not a field the KB carries; it is written into the task TEXT as a ``<repo>#<number>`` reference. This
+  source extracts those references and emits a ``Relation(<repo-identity>, "has-task", <task id>)`` per
+  referenced repo, leaving the matched/unmatched decision to the composer (BR06). A task with no reference
+  contributes a node but no relation (outside the join, never noise in it).
+- ``chain``: the state (open or done) of the SPECIFIC ``^anchor`` items a work item references.
+- ``inbound``: every open and done task whose parsed refs CONTAIN one item key — the tasks citing that item.
+
+Source-agnostic by construction (BR02): the config declares WHICH CLI lists the tasks (open, and optionally
+done) and how to map its JSON — never a store/instance. The subprocess runner is injected so normalization
+is testable without the CLI installed; a failed read degrades this source into a note rather than a raise
+that sinks the federation (BR04).
 """
 
 from __future__ import annotations

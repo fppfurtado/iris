@@ -25,6 +25,17 @@ ref = "id"                                            # dotted paths into each i
 excerpt = "summary"
 # trust = "meta.status"
 # age = "meta.age_days"
+# The INBOUND read enables `iris inbound <key>` on this source: a command that lists the records citing one
+# item. `{key}` is substituted with the item key (`<repo>#<n>` or `^<anchor>`) as ONE argument. The store
+# decides which of its records cite the key; iris does not re-match them. Omit the table and this source is
+# never read for `inbound`.
+[sources.notes.inbound]
+command = ["notes", "backlinks", "{key}", "--json"]
+items = ""                                            # dotted path to the record list ("" = the top-level array)
+skip = ["lists/tasks.md"]                             # drop records whose locator starts with a prefix
+[sources.notes.inbound.map]
+locator = "source"                                    # the record's locator (file, or file#block)
+type = "type"                                         # the link type
 
 # A `tracker` source: open issues per repo from a forge CLI (gh/glab), joined to the repo registry
 # by identity to compose `repo ⋈ open-issues`. Source-agnostic by construction — you name the CLI

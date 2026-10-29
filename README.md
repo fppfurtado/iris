@@ -75,9 +75,9 @@ maps `type` → factory); the remaining keys are that type's options. Five sourc
 | type | reads | serves |
 |---|---|---|
 | `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, tags, relations); on-disk `roots` for `check` | all commands |
-| `cli-json` | any CLI that emits JSON, mapped into grounding hits | `ground`, `context` |
-| `tracker` | open issues per repo from a forge CLI (`gh`/`glab`), and a referenced issue's state | `context`, `chain` |
-| `tasks` | open (and done) task-list items from a knowledge base CLI | `context`, `chain` |
+| `cli-json` | any CLI that emits JSON, mapped into grounding hits; with an `inbound` table, the records citing an item | `ground`, `context`, `inbound` |
+| `tracker` | open issues per repo from a forge CLI (`gh`/`glab`), and a referenced issue's state | `context`, `chain`, `inbound` |
+| `tasks` | open (and done) task-list items from a knowledge base CLI | `context`, `chain`, `inbound` |
 | `forge-repos` | the repo listing of each configured forge org | `check` |
 
 The two most common, as an example:
@@ -100,6 +100,14 @@ ref = "id"                                            # dotted paths into each i
 excerpt = "summary"
 # trust = "meta.status"
 # age = "meta.age_days"
+# Optional: the records citing one item, for `iris inbound` ({key} = `<repo>#<n>` or `^<anchor>`).
+[sources.notes.inbound]
+command = ["notes", "backlinks", "{key}", "--json"]
+items = ""                                            # "" = the top-level array
+skip = ["lists/tasks.md"]                             # drop records whose locator starts with a prefix
+[sources.notes.inbound.map]
+locator = "source"
+type = "type"
 ```
 
 See [`sources.example.toml`](sources.example.toml) for the annotated reference.
@@ -111,6 +119,7 @@ iris repos [--tag <tag>]      # list repos with their tags/roles (optionally fil
 iris ground "<query>"         # ground a query across federated sources
 iris context "<task>"         # assemble the integral context relevant to a task
 iris chain "<item text>"      # resolve a work item's cross-repo dependency chain in one shot
+iris inbound <key>            # what cites one item (<repo>#<n> or ^<anchor>), joined to its live state
 iris check [--json]           # check constellation membership for drift (exit 0/1/2)
 ```
 
@@ -132,6 +141,25 @@ are shown as **UNKNOWN**, never folded into "clear":
 `chain` needs the `tracker` source to declare a per-issue `view` command (fetching one issue by number
 incl. its state) and, to resolve *done* anchors, the `tasks` source to declare a `done_command` — see
 [`sources.example.toml`](sources.example.toml).
+
+`inbound` is the reverse of `chain`: given ONE item key, it shows the item's live state, the tasks whose
+text cites it (open and done), and the records a knowledge source returns as citing it. A source that could
+not be read is listed under **unknown** and never folded into "no citations":
+
+```
+## item
+iris#34  [open]  Frame: database as a source
+## tasks citing iris#34
+^8g58ft  [open]  chase iris#34 in a session with a live case
+## citations
+journal/2026/2026-09-04.md#a-block  [refs]
+## unknown
+tracker
+```
+
+`inbound` reads the item's state through the same `chain` reads, the citing tasks from the `tasks` source,
+and the citations from a `cli-json` source that declares an `inbound` table — see
+[`sources.example.toml`](sources.example.toml). An invalid key exits **2**.
 
 `context` **synthesizes** rather than juxtaposes: when a `tracker` source is declared, it joins each
 repo with its **open issues** (a genuine cross-source composition — the repo comes from one source, its
@@ -199,6 +227,7 @@ clean for piping.
 - tool **`repos(tag?)`** — list repos with tags/roles
 - tool **`context(task)`** — repos ⋈ their open issues plus grounding (the same composed join the CLI renders)
 - tool **`chain(item)`** — a work item ⋈ its referenced nodes' live state, with candidate blockers and a distinct `unknown_unresolved` (the same composition the CLI renders)
+- tool **`inbound(key)`** — one item's live state ⋈ the tasks and records that cite it, with a distinct `unknown` (the same composition the CLI renders)
 - resource **`iris://nodes`** — all federated nodes (read-only enumerable)
 
 Point your MCP-capable agent at the `iris-mcp` command. Example client config:
