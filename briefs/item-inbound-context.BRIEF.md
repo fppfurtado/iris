@@ -1,10 +1,10 @@
 # Problem Brief: item inbound context — what the other sources say about one work item
 
-- Frozen at: — (withheld, draft)
+- Frozen at: 2026-10-29
 - Mode: verifiable
 - Distilled from dossier: `.throughline/dossiers/arm-3-single-item-deep-read.md` (re-entry 2026-10-29, sketch v4)
-- Brief version: — (withheld pending approval)
-- Status: DRAFT — freeze pending approval
+- Brief version: v1
+- Status: frozen after approval on 2026-10-29 (operator "sim" to "Freeze the Brief as v1?")
 - Independent read: ran — blind-critic, J3/J5/J6 (2026-10-29); 4 findings disposed in this draft: anchor key
   added (J1, F7, N4), the not-looking consequence recorded (N5), a lasting earn criterion (S2, old S2 → S2b),
   a parser-independent S1 check; F2 units corrected
@@ -45,7 +45,7 @@ because the firing was recorded only in a knowledge-store note.
   Value-rejected: one direct, complete call already returns it (the forge CLI or the backlog tool's item read); the source is non-sensitive, so transport adds no value.
 - N2: Interpreting what a citation means — declaring a trigger fired, a decision binding, an item done.
   Value-rejected: the layer composes and exposes data read-only; judgment stays with the consumer.
-- N3: Making the knowledge store's own inbound-link read resolve tasks per task instead of per file — that
+- N3 (filed upstream: fppfurtado/mneme#343): Making the knowledge store's own inbound-link read resolve tasks per task instead of per file — that
   is the store's within-source read (seam rule), filed upstream to the store, not built here.
 - N4: Inbound citations from forge items (issues in any forge citing the key — cross-forge fan-in). Value
   plausible, evidence n=0 (the one recorded reverse-ref case, F7, is a task gated by another task, which J2
