@@ -26,9 +26,9 @@ from typing import Callable
 
 from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
-from iris.core.source import KIND_CHAIN, KIND_NODES, Query, Source, SourceResult
+from iris.core.source import KIND_CHAIN, KIND_INBOUND, KIND_NODES, Query, Source, SourceResult
 from iris.sources._json import dig
-from iris.sources._repos import parse_refs, repo_refs
+from iris.sources._repos import parse_key, parse_refs, repo_refs
 
 Runner = Callable[[list[str]], str]
 
@@ -53,9 +53,10 @@ def _make_default_runner(timeout: float) -> Runner:
 class TasksSource:
     """A read-only source over a task-list CLI, one invocation for the whole open list."""
 
-    # Emits the node graph (task nodes + repo->task relations) for ``context``, AND referenced-anchor
-    # state for ``chain`` (KIND_CHAIN). No hits: a hits-only query (e.g. ``ground``) skips it.
-    produces = frozenset({KIND_NODES, KIND_CHAIN})
+    # Emits the node graph (task nodes + repo->task relations) for ``context``, referenced-anchor state
+    # for ``chain`` (KIND_CHAIN), AND the tasks citing a key for ``inbound`` (KIND_INBOUND). No hits: a
+    # hits-only query (e.g. ``ground``) skips it.
+    produces = frozenset({KIND_NODES, KIND_CHAIN, KIND_INBOUND})
 
     def __init__(self, name: str, options: dict | None = None, runner: Runner | None = None) -> None:
         opts = options or {}
@@ -74,6 +75,8 @@ class TasksSource:
     def read(self, query: Query) -> SourceResult:
         # Kind-aware mode split (BR07): a ``chain`` query wants the state of the SPECIFIC anchors an
         # item references (incl. done); ``context``/bare reads keep the whole-open-queue path.
+        if query.kinds is not None and KIND_INBOUND in query.kinds:
+            return self._read_citing(query)
         if query.kinds is not None and KIND_CHAIN in query.kinds:
             return self._read_referenced(query)
         return self._read_open(query)
@@ -137,6 +140,45 @@ class TasksSource:
                 # list this item came from.
                 nodes.append(Node(id=str(task_id), kind="task", title=text, roles=[state], source=self.name))
         note = f"chain: {failed} list(s) unreadable" if failed else ""
+        return SourceResult(nodes=nodes, ok=not failed, note=note)
+
+
+    def _read_citing(self, query: Query) -> SourceResult:
+        """Inbound mode: every open AND done task whose parsed refs CONTAIN the query key's ``Ref``.
+
+        Equality on the typed Ref, so ``iris#3`` never matches a task citing only ``iris#34`` and ``^ab``
+        never matches ``^abc``. A task citing itself (an anchor key equal to its own id) is not emitted.
+        Per-list isolation as in chain mode: an unreadable list degrades, the other still contributes.
+        """
+        key = parse_key(query.text)
+        if key is None:
+            return SourceResult(ok=True)
+        nodes: list[Node] = []
+        failed = 0
+        for command, state in ((self._command, "open"), (self._done_command, "done")):
+            if not command:
+                continue
+            try:
+                data = json.loads(self._runner(list(command)))
+            except Exception:  # per-list isolation (BR04)
+                failed += 1
+                continue
+            items = dig(data, self._items_path) if self._items_path else data
+            if not isinstance(items, list):
+                failed += 1
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                task_id = dig(item, self._map.get("id", "id"))
+                if task_id is None:
+                    continue
+                if key.kind == "anchor" and str(task_id) == key.anchor:
+                    continue  # the item itself, not a record citing it
+                text = str(dig(item, self._map.get("title", "text")) or "")
+                if key in parse_refs(text):
+                    nodes.append(Node(id=str(task_id), kind="task", title=text, roles=[state], source=self.name))
+        note = f"inbound: {failed} list(s) unreadable" if failed else ""
         return SourceResult(nodes=nodes, ok=not failed, note=note)
 
 

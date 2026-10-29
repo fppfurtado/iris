@@ -96,10 +96,10 @@ def test_task_without_id_is_skipped():
     assert [n.id for n in res.nodes] == ["ok"]
 
 
-def test_produces_nodes_and_chain():
-    from iris.core.source import KIND_CHAIN
+def test_produces_nodes_chain_and_inbound():
+    from iris.core.source import KIND_CHAIN, KIND_INBOUND
 
-    assert TasksSource("gtd").produces == frozenset({KIND_NODES, KIND_CHAIN})
+    assert TasksSource("gtd").produces == frozenset({KIND_NODES, KIND_CHAIN, KIND_INBOUND})
 
 
 # --- F6-T3: chain mode — resolve specific ^anchor to its state (open/done) ---------------------
@@ -157,3 +157,52 @@ def test_chain_degrades_failing_list_without_sinking():
     src = TasksSource("gtd", {"command": ["mneme", "task", "list", "--json"]}, runner=runner)
     res = src.read(Query(text="ref ^dogfd1", kinds=frozenset({KIND_CHAIN})))
     assert not res.ok and "unreadable" in res.note and res.nodes == []
+
+
+# --- SP-T2: inbound mode — the tasks citing a key (open AND done) ---------------------------------
+
+from iris.core.source import KIND_INBOUND  # noqa: E402
+
+_IN_OPEN = (
+    '[{"id": "t1", "text": "chase iris#34 in a TJPA session"},'
+    ' {"id": "t2", "text": "only iris#340 here"},'
+    ' {"id": "t3", "text": "gated on ^ab until it lands"},'
+    ' {"id": "ab", "text": "the item itself, citing ^ab"},'
+    ' {"id": "t4", "text": "names ^abc only"}]'
+)
+_IN_DONE = '[{"id": "d1", "text": "done: iris#34 first pass"}, {"id": "d2", "text": "done: iris#3"}]'
+
+
+def _inbound_src(runner):
+    opts = {"command": ["open"], "done_command": ["done"]}
+    return TasksSource("gtd", opts, runner=runner)
+
+
+def _lists(cmd):
+    return _IN_OPEN if cmd == ["open"] else _IN_DONE
+
+
+def test_inbound_emits_open_and_done_citing_tasks_with_state():
+    res = _inbound_src(_lists).read(Query(text="iris#34", kinds=frozenset({KIND_INBOUND})))
+    assert res.ok
+    assert [(n.id, n.roles) for n in res.nodes] == [("t1", ["open"]), ("d1", ["done"])]
+    assert all(n.kind == "task" and n.source == "gtd" for n in res.nodes)
+
+
+def test_inbound_never_matches_a_prefix_of_another_ref():
+    # iris#3 vs iris#34/iris#340; ^ab vs ^abc — equality on the typed Ref, not a text prefix.
+    short = _inbound_src(_lists).read(Query(text="iris#3", kinds=frozenset({KIND_INBOUND})))
+    assert [n.id for n in short.nodes] == ["d2"]
+    anchor = _inbound_src(_lists).read(Query(text="^ab", kinds=frozenset({KIND_INBOUND})))
+    assert [n.id for n in anchor.nodes] == ["t3"]  # not t4 (^abc), not the item ^ab itself
+
+
+def test_inbound_one_unreadable_list_still_emits_the_other():
+    def runner(cmd):
+        if cmd == ["done"]:
+            raise RuntimeError("store missing")
+        return _IN_OPEN
+
+    res = _inbound_src(runner).read(Query(text="iris#34", kinds=frozenset({KIND_INBOUND})))
+    assert not res.ok and "unreadable" in res.note
+    assert [n.id for n in res.nodes] == ["t1"]
