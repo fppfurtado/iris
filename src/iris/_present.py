@@ -24,6 +24,7 @@ from typing import Callable
 
 from iris.core.compose import ComposedRepo, Composition, InboundContext, compose_inbound
 from iris.core.federation import FederationResult
+from iris.core.registry import DEFAULT, Registry
 from iris.core.source import KIND_CHAIN, KIND_INBOUND, Query
 from iris.sources._repos import repo_refs
 
@@ -35,6 +36,15 @@ def relevant_repos(composition: Composition, task: str) -> list[ComposedRepo]:
         rw
         for rw in composition.repos
         if (rw.issues or rw.tasks) and (not scope or rw.repo.id in scope or bool(rw.issues))
+    ]
+
+
+def inbound_sources(config, registry: Registry = DEFAULT) -> list[str]:
+    """The names of the configured sources that read ``inbound`` (their ``produces`` contains it)."""
+    return [
+        source.name
+        for source in registry.resolve(config)
+        if KIND_INBOUND in (getattr(source, "produces", None) or frozenset())
     ]
 
 
@@ -53,4 +63,4 @@ def inbound_context(config, key: str, federate: Callable[..., FederationResult])
     if anchors:
         text = " ".join(f"^{anchor}" for anchor in anchors)
         task_state = federate(config, Query(text=text, kinds=frozenset({KIND_CHAIN})))
-    return compose_inbound(key, state, citing, task_state)
+    return compose_inbound(key, state, citing, task_state, searched=inbound_sources(config))

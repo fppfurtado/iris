@@ -148,6 +148,8 @@ def inbound(key: str) -> dict:
         "citations": [asdict(n) for n in composed.citations],
         "unknown": list(composed.unknown),
         "notes": composed.notes,
+        "searched": list(composed.searched),
+        "not_covered": list(composed.not_covered),
     }
 
 

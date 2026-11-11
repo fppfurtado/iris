@@ -246,3 +246,15 @@ def test_inbound_degraded_task_state_pass_is_unknown():
         FederationResult(degraded=["gtd"], notes=["gtd: chain: 1 list(s) unreadable"]),
     )
     assert ctx.unknown == ["gtd"] and "gtd: chain: 1 list(s) unreadable" in ctx.notes
+
+
+# --- SP-T11 (Spec v2): searched + not_covered on every result --------------------------------------
+
+
+def test_inbound_always_carries_searched_and_the_fixed_not_covered():
+    from iris.core.compose import NOT_COVERED
+
+    ctx = compose_inbound("iris#34", FederationResult(), FederationResult(), searched=["notes"])
+    assert ctx.searched == ["notes"]
+    assert ctx.not_covered == list(NOT_COVERED) and len(NOT_COVERED) == 2
+    assert compose_inbound("iris#34", FederationResult(), FederationResult()).searched == []

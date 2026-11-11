@@ -228,8 +228,17 @@ def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `
         typer.echo("## unknown")
         for name in composed.unknown:
             typer.echo(name)
-    elif not composed.tasks and not composed.citations:
-        typer.echo(f"# no records cite {composed.key}", err=True)
+    typer.echo("## searched")
+    for name in composed.searched:
+        typer.echo(name)
+    typer.echo("## not searched")
+    for entry in composed.not_covered:
+        typer.echo(entry)
+    if not composed.unknown and not composed.tasks and not composed.citations:
+        if composed.searched:
+            typer.echo(f"# no records in {', '.join(composed.searched)} cite {composed.key}", err=True)
+        else:
+            typer.echo("# no configured source reads inbound — nothing was searched", err=True)
 
     for note in composed.notes:
         typer.echo(f"# {note}", err=True)

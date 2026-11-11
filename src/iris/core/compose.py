@@ -220,6 +220,18 @@ class InboundContext:
     citations: list[Node] = field(default_factory=list)
     unknown: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # What an absence of records covers (Spec v2, iris#62 part 2): the sources read for ``inbound``, and what
+    # no configured source searches. Without them an empty result reads as "nothing anywhere cites it".
+    searched: list[str] = field(default_factory=list)
+    not_covered: list[str] = field(default_factory=list)
+
+
+# Fixed by the verb's design (Spec v2): no source reads forge items for citations of a key, and the citation
+# forms outside identity (Brief C3) are never matched.
+NOT_COVERED: tuple[str, ...] = (
+    "forge items citing the key (cross-forge fan-in)",
+    "citations written as a forge URL or a bare #<n> (outside identity)",
+)
 
 
 def compose_inbound(
@@ -227,6 +239,7 @@ def compose_inbound(
     state: FederationResult,
     inbound: FederationResult,
     task_state: FederationResult | None = None,
+    searched: list[str] | None = None,
 ) -> InboundContext:
     """Join the item's live state (``state``, a ``chain`` pass) to the records citing it (``inbound``).
 
@@ -235,7 +248,8 @@ def compose_inbound(
     (open/done) from the ``task_state`` node with the same id — a ``chain`` pass over those anchors — and an
     unresolved one keeps ``roles=[]`` (state unknown, never dropped). A task equal to an anchor key is the
     item itself, not a record citing it. Tasks and citations keep the inbound pass's source order,
-    de-duplicated by (kind, id). A source degraded in any pass is named in ``unknown``.
+    de-duplicated by (kind, id). A source degraded in any pass is named in ``unknown``. ``searched`` names the
+    sources read for ``inbound``; ``not_covered`` is always the fixed :data:`NOT_COVERED`.
     """
     ref = parse_key(key)
     item: Node | None = None
@@ -271,4 +285,6 @@ def compose_inbound(
         citations=citations,
         unknown=list(dict.fromkeys(name for p in passes for name in p.degraded)),
         notes=[note for p in passes for note in p.notes],
+        searched=list(searched or []),
+        not_covered=list(NOT_COVERED),
     )

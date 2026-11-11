@@ -247,9 +247,10 @@ def test_cli_inbound_unknown_source_never_claims_no_records(monkeypatch):
 
 def test_cli_inbound_nothing_cites_and_nothing_unknown(monkeypatch):
     _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult())
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config: ["notes"])
     result = runner.invoke(cli.app, ["inbound", "iris#34"])
     assert result.exit_code == 0
-    assert "# no records cite iris#34" in result.stderr
+    assert "# no records in notes cite iris#34" in result.stderr
 
 
 def test_cli_inbound_invalid_key_exits_2(monkeypatch):
@@ -294,3 +295,36 @@ def test_cli_inbound_degraded_task_state_pass_is_unknown(monkeypatch):
             FederationResult(degraded=["gtd"], notes=["gtd: degraded"]))
     out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
     assert "## unknown\ngtd" in out
+
+
+# --- SP-T11 (Spec v2): what an absence covers — searched + not searched ----------------------------
+
+
+def test_cli_inbound_always_prints_searched_and_not_searched(monkeypatch):
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config: ["notes"])
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_CITE]))
+    out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "## searched\nnotes\n" in out
+    assert "## not searched\nforge items citing the key (cross-forge fan-in)\n" in out
+    assert "forge URL or a bare #<n>" in out
+
+
+def test_cli_inbound_with_no_inbound_source_never_claims_no_records(monkeypatch):
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config: [])
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult())
+    result = runner.invoke(cli.app, ["inbound", "iris#34"])
+    assert "no records" not in result.output
+    assert "nothing was searched" in result.stderr
+
+
+def test_inbound_sources_names_only_sources_producing_inbound():
+    from iris._present import inbound_sources
+    from iris.config import Config, SourceSpec
+    from iris.core.registry import Registry
+
+    reg = Registry()
+    reg.register("a", lambda name, opts: SimpleNamespace(name=name, produces=frozenset({"inbound", "hits"})))
+    reg.register("b", lambda name, opts: SimpleNamespace(name=name, produces=frozenset({"chain"})))
+    reg.register("c", lambda name, opts: SimpleNamespace(name=name))  # no produces: never named
+    config = Config(sources=[SourceSpec(name=n, type=n, options={}) for n in ("a", "b", "c")])
+    assert inbound_sources(config, reg) == ["a"]

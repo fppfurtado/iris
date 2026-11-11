@@ -158,6 +158,7 @@ def test_mcp_inbound_returns_the_same_records_as_the_cli(monkeypatch):
     state = FederationResult(nodes=[_ITEM])
     citing = FederationResult(nodes=[_TASK, _CITE], degraded=["tracker"])
     task_state = FederationResult(nodes=[_TASK_STATE])
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config: ["notes"])
     _canned(monkeypatch, mcp_adapter, state, citing, task_state)
     _canned(monkeypatch, cli, state, citing, task_state)
 
@@ -166,6 +167,9 @@ def test_mcp_inbound_returns_the_same_records_as_the_cli(monkeypatch):
     assert [(t["id"], t["roles"]) for t in data["tasks"]] == [("8g58ft", ["open"])]
     assert [c["id"] for c in data["citations"]] == ["journal/2026-09-04.md#a-block"]
     assert data["unknown"] == ["tracker"]
+    assert data["searched"] == ["notes"]
+    from iris.core.compose import NOT_COVERED
+    assert data["not_covered"] == list(NOT_COVERED)
 
     out = CliRunner().invoke(cli.app, ["inbound", "iris#34"]).stdout
     assert "^8g58ft" in out and "journal/2026-09-04.md#a-block" in out and "## unknown\ntracker" in out
