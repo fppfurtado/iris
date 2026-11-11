@@ -5,7 +5,7 @@
 # pre-commit guard there: git runs one file per hook), commit it, and run `git config core.hooksPath .githooks`
 # once per clone. Protected branch: `git config hooks.protectedBranch`, else origin/HEAD, else main or master.
 # A repo's first commit passes (there is nothing to open a PR against). Override: `git commit --no-verify`.
-# throughline glossary altitude check (vendored .ci/glossary_altitude.py, throughline-v2.13.0; GLOSSARY_ALTITUDE.md):
+# throughline glossary altitude check (vendored .ci/glossary_altitude.py, throughline-v2.33.0; GLOSSARY_ALTITUDE.md):
 # a mechanism token added to docs/domain.md blocks the commit; snake_case names are listed for you to judge.
 # A missing python3 or tool, or a tool error, does not block (CI runs the same check). Override: --no-verify.
 _ga_tool=".ci/glossary_altitude.py"

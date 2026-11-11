@@ -26,7 +26,7 @@ throughline: domain-glossary
 
 <!-- floor block vendored below; never edit inside it, extend below the closing marker -->
 
-<!-- agent-kit operational-floor v18 — single source: agent-kit/onboarding/operational-floor.md
+<!-- agent-kit operational-floor v19 — single source: agent-kit/onboarding/operational-floor.md
      Copy this whole block into your repo's own AGENTS.md / CLAUDE.md, below your own content.
      Extend BELOW the closing marker; never edit INSIDE the block. Re-copy when the version bumps.
      This block is a SHIPPED ASSET: it stays English-as-shipped regardless of your repo's `## Language`
@@ -86,6 +86,9 @@ throughline: domain-glossary
      how it reaches a home; agent-kit#2183 decision 0050, #2950). The same sentence's ground changes from a
      capability claim ("no repo-side check can see it") — which this repo's own committed script falsifies
      — to the true one: the store is unversioned and absent from any diff or review (#2342).
+     v19 (2026-10-29) gives the Cycle-close capture sweep one clause: a break — code the change lands that
+     fails — is disposed by its land-gate record, never by a filed item alone (agent-kit#2973, Spec
+     spec-assumptions-at-build v3 D13).
      This generic block intentionally omits the maintainer-internal
      release/attestation rungs (a per-PR method self-check, issue-close-evidence, the PR attestation
      lines, and release-due surfacing for published units) — they depend on maintainer-specific tooling
@@ -168,7 +171,8 @@ with or without it.
   dispose each **per item, to a durable surface**: enumerate each surfaced follow-up (an odd-class one — a
   one-off "run `X`" mechanical step — counts too) and name where it durably lands (fixed in this cycle,
   naming the fix; a filed tracker item; or a recorded reason it needs none), never swallowed — whether or
-  not the session lands. Two things are never "fixed": a finding whose fix is still an open choice, and a
+  not the session lands. A **break** (code the change lands that fails) is disposed by its land-gate record
+  (`land_gate.py breaks` in a throughline install), never by a filed item alone. Two things are never "fixed": a finding whose fix is still an open choice, and a
   change to how an agent judges (a prompt, skill, or instruction edit) not yet verified to behave as
   intended — file those. Fixing one instance of a wider class is fixed AND filed for the class. An **aggregate** "all
   handled" and a mention in **chat, an ephemeral close summary, or un-attested prose** are NOT durable
@@ -219,4 +223,4 @@ throughline-built code (use the land-gate CI recipe your throughline install shi
 protection. These are per-harness / per-platform add-ons, not a dependency of the norm — where they are
 absent, the self-checks still bind.
 
-<!-- /agent-kit operational-floor v18 -->
+<!-- /agent-kit operational-floor v19 -->
