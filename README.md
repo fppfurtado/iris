@@ -237,7 +237,7 @@ clean for piping.
 - tool **`repos(tag?)`** — list repos with tags/roles
 - tool **`context(task)`** — repos ⋈ their open issues plus grounding (the same composed join the CLI renders)
 - tool **`chain(item)`** — a work item ⋈ its referenced nodes' live state, with candidate blockers and a distinct `unknown_unresolved` (the same composition the CLI renders)
-- tool **`inbound(key)`** — one item's live state ⋈ the tasks and records that cite it, with a distinct `unknown`, plus `searched` and `not_covered` (the same composition the CLI renders)
+- tool **`inbound(key)`** — one item's live state ⋈ the tasks and records that cite it, with a distinct `unknown`, plus `searched` and `not_covered`; each task carries `state` (`open` / `done` / `unknown`) (the same composition the CLI renders)
 - resource **`iris://nodes`** — all federated nodes (read-only enumerable)
 
 Point your MCP-capable agent at the `iris-mcp` command. Example client config:

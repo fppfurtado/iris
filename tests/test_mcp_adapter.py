@@ -158,7 +158,7 @@ def test_mcp_inbound_returns_the_same_records_as_the_cli(monkeypatch):
     state = FederationResult(nodes=[_ITEM])
     citing = FederationResult(nodes=[_TASK, _CITE], degraded=["tracker"])
     task_state = FederationResult(nodes=[_TASK_STATE])
-    monkeypatch.setattr("iris._present.inbound_sources", lambda config: ["notes"])
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config, registry=None: ["notes"])
     _canned(monkeypatch, mcp_adapter, state, citing, task_state)
     _canned(monkeypatch, cli, state, citing, task_state)
 
@@ -179,3 +179,17 @@ def test_mcp_inbound_invalid_key_returns_error(monkeypatch):
     _canned(monkeypatch, mcp_adapter)
     data = asyncio.run(_call_inbound("not a key"))
     assert "error" in data
+
+
+
+def test_mcp_inbound_marks_an_unresolved_task_state_unknown(monkeypatch):
+    # Review finding 1: the CLI's `[state unknown]` has its MCP counterpart, an explicit `state`.
+    _canned(monkeypatch, mcp_adapter, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]),
+            FederationResult())
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert [(t["id"], t["roles"], t["state"]) for t in data["tasks"]] == [("8g58ft", [], "unknown")]
+
+    _canned(monkeypatch, mcp_adapter, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]),
+            FederationResult(nodes=[_TASK_STATE]))
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert [t["state"] for t in data["tasks"]] == ["open"]
