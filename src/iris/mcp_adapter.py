@@ -13,11 +13,11 @@ from dataclasses import asdict
 from fastmcp import FastMCP
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
-from iris._present import relevant_repos
+from iris._present import inbound_context, relevant_repos
 from iris.config import Config, active_config
-from iris.core.compose import compose_inbound, compose_referenced_nodes, compose_repo_issues, is_gate_marked
+from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import federate
-from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_INBOUND, KIND_NODES, Query
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, Query
 from iris.sources._repos import parse_key
 from iris.telemetry import log_request
 
@@ -132,9 +132,7 @@ def inbound(key: str) -> dict:
     if parse_key(key) is None:
         return {"error": f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`"}
     config = active_config()
-    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})))
-    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})))
-    composed = compose_inbound(key, state, citing)
+    composed = inbound_context(config, key, federate)
     log_request(
         "inbound",
         key,

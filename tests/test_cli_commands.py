@@ -191,25 +191,36 @@ from iris.core.model import Node  # noqa: E402
 _FAKE_CONFIG = SimpleNamespace(sources=[])
 
 _ITEM = Node(id="iris#34", kind="issue", title="database as a source", roles=["open"], source="tracker")
-_TASK = Node(id="8g58ft", kind="task", title="chase iris#34 in a TJPA session\nmore", roles=["open"], source="gtd")
+_TASK = Node(id="8g58ft", kind="task", title="", roles=[], source="notes")  # as the store names it (v2)
+_TASK_STATE = Node(id="8g58ft", kind="task", title="chase iris#34 in a TJPA session\nmore", roles=["open"],
+                   source="gtd")
 _CITE = Node(id="journal/2026-09-04.md#a-block", kind="citation", title="journal/2026-09-04.md#a-block",
              roles=["refs"], source="notes")
 
 
-def _canned(monkeypatch, module, state=None, citing=None):
-    """Fake the two federation passes: the chain pass returns `state`, the inbound pass `citing`."""
+def _canned(monkeypatch, module, state=None, citing=None, task_state=None, seen=None):
+    """Fake the federation passes: the first chain pass returns `state`, the inbound pass `citing`, and
+    the second chain pass (the citing tasks' state, Spec v2) `task_state`. `seen` collects each query."""
+    chain_calls = []
+
     def fake_federate(config, query, *a, **k):
+        if seen is not None:
+            seen.append((sorted(query.kinds), query.text))
         if "inbound" in query.kinds:
             return citing or FederationResult()
         assert "chain" in query.kinds
-        return state or FederationResult()
+        chain_calls.append(query.text)
+        if len(chain_calls) == 1:
+            return state or FederationResult()
+        return task_state or FederationResult()
 
     monkeypatch.setattr(module, "federate", fake_federate)
     monkeypatch.setattr(module, "_load_config" if module is cli else "active_config", lambda *a, **k: _FAKE_CONFIG)
 
 
 def test_cli_inbound_renders_item_tasks_and_citations(monkeypatch):
-    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK, _CITE]))
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK, _CITE]),
+            FederationResult(nodes=[_TASK_STATE]))
     result = runner.invoke(cli.app, ["inbound", "iris#34"])
     assert result.exit_code == 0
     out = result.stdout
@@ -254,3 +265,32 @@ def test_cli_inbound_citation_without_link_type_has_no_empty_brackets(monkeypatc
     _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[bare]))
     out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
     assert "## citations\nnotes/d.md\n" in out
+
+
+# --- SP-T10 (Spec v2): the citing tasks' state, a third pass ---------------------------------------
+
+
+def test_cli_inbound_reads_task_state_by_anchor_only_when_a_task_cites(monkeypatch):
+    seen = []
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK, _CITE]),
+            FederationResult(nodes=[_TASK_STATE]), seen=seen)
+    runner.invoke(cli.app, ["inbound", "iris#34"])
+    assert seen == [(["chain"], "iris#34"), (["inbound"], "iris#34"), (["chain"], "^8g58ft")]
+
+    seen.clear()
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_CITE]), seen=seen)
+    runner.invoke(cli.app, ["inbound", "iris#34"])
+    assert seen == [(["chain"], "iris#34"), (["inbound"], "iris#34")]  # no task cites: no third pass
+
+
+def test_cli_inbound_unresolved_task_renders_state_unknown(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]), FederationResult())
+    out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "## tasks citing iris#34\n^8g58ft  [state unknown]\n" in out
+
+
+def test_cli_inbound_degraded_task_state_pass_is_unknown(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]),
+            FederationResult(degraded=["gtd"], notes=["gtd: degraded"]))
+    out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "## unknown\ngtd" in out
