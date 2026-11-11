@@ -5,8 +5,9 @@ A glossary write that no review stage reads (a stand-alone edit) used to meet no
 judgment lives in `review`, and the at-rest pass runs on demand. This tool closes that gap at the commit, whatever
 wrote it. It is SELF-CONTAINED and stdlib-only on purpose: a consumer vendors this one file at a pinned tag into
 `.ci/` and runs it from a committed pre-commit hook and a CI step (`GLOSSARY_ALTITUDE.md`), the `land_gate.py`
-precedent — a vendored file cannot import a sibling. `domain_glossary.py delta` imports `TIER_A` and `new_tokens`
-from here, so the review path and the commit path judge the same classes.
+precedent — a vendored file cannot import a sibling. `domain_glossary.py` imports from here — `delta` takes `TIER_A`
+and `new_tokens`, the at-rest `altitude-seed` `TIER_A`, `tokens` and `spans` — so review, the at-rest audit and the
+commit judge the same classes (#1756, #2567).
 
 Two tiers:
 - **tier A — findings, exit 1.** Mechanism that is never ubiquitous language: an env-var name, a ≥6-digit literal, a
@@ -17,7 +18,7 @@ Two tiers:
   shape names a function in one model and an enum value of the domain in another (4/6 vocabulary commits carry one),
   so only a reader who knows the model can tell; the tool lists them for the writer to judge.
 
-Before matching, both tiers drop: `(carrier: …)` and `(anchor: …)` spans (tokens another throughline obligation
+Before matching, both tiers drop: `(carrier: …)`, `(anchor: …)` and `(world: …)` spans (tokens another throughline obligation
 mandates in the same file), the domain-key convention (`word:<id>`, `` word:`…` ``), and a literal introduced as an
 example of a format (`ex.` / `e.g.` / `example` / `for example` / `por exemplo`, any case, an optional colon, then a
 backticked value with no letter in it — an identifier, route or path after "e.g." is still read). A token already present in the change's
@@ -30,7 +31,9 @@ Exit 1 iff tier A findings; 0 otherwise (including a change that does not touch 
 
 A glossary renamed or moved in the change is diffed against its old path, so a content-free move reports nothing.
 """
+import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -48,7 +51,7 @@ TIER_A = (
 TIER_B = (
     ("snake_identifier", re.compile(r"`(?![a-z0-9_]*_id`)[a-z][a-z0-9]*(?:_[a-z0-9]+)+(?:\(\))?`")),
 )
-_SPAN_OPENERS = ("(carrier:", "(anchor:")
+_SPAN_OPENERS = ("(carrier:", "(anchor:", "(world:")
 _DOMAIN_KEY = re.compile(r"\b[a-z][a-z_]*:(?:<|`)")
 _EXAMPLE = re.compile(r"\b(?:ex\.?|e\.g\.|por exemplo|for example|example)\s*:?\s*`[^`A-Za-z]*\d[^`A-Za-z]*`",
                       re.IGNORECASE)
@@ -56,20 +59,28 @@ _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 DEFAULT_GLOSSARY = "docs/domain.md"
 
 
+def spans(line, opener):
+    """[(start, end)] of every `opener` span in `line`, each closed at its matching parenthesis (a span may nest
+    parentheses, e.g. a carrier record's per-site note). `domain_glossary.altitude_seed` lists carrier records
+    with it, so the at-rest seed and this check bound a span the same way."""
+    out, start = [], line.find(opener)
+    while start != -1:
+        depth, end = 0, len(line)                     # an unclosed span runs to the end of the line
+        for i in range(start, len(line)):
+            depth += {"(": 1, ")": -1}.get(line[i], 0)
+            if depth == 0:
+                end = i + 1
+                break
+        out.append((start, end))
+        start = line.find(opener, end)
+    return out
+
+
 def _drop_spans(line):
-    """`line` without its `(carrier: …)` / `(anchor: …)` spans, each closed at its matching parenthesis (a span may
-    nest parentheses, e.g. a carrier record's per-site note)."""
+    """`line` without its `(carrier: …)` / `(anchor: …)` / `(world: …)` spans."""
     for opener in _SPAN_OPENERS:
-        start = line.find(opener)
-        while start != -1:
-            depth, end = 0, len(line)                 # an unclosed span runs to the end of the line
-            for i in range(start, len(line)):
-                depth += {"(": 1, ")": -1}.get(line[i], 0)
-                if depth == 0:
-                    end = i + 1
-                    break
+        for start, end in reversed(spans(line, opener)):
             line = line[:start] + " " + line[end:]
-            start = line.find(opener, start)
     return line
 
 
@@ -100,9 +111,24 @@ class CheckError(Exception):
     """A usage/revision error the CLI reports as exit 2 + JSON `error`."""
 
 
-def _git(repo, *args):
+# ---- git_run: copy of spec_surface.git_run (this file is vendored alone; tests pin the copy)
+# A git child must read the repo it names with -C, not one the parent inherited: inside a git hook GIT_DIR
+# and GIT_WORK_TREE point at the hook's own repo. GIT_INDEX_FILE is kept on purpose: a pre-commit hook points
+# it at the index being committed, which is the staged set a hook-run tool must read.
+_GIT_SCRUBBED_ENV = ("GIT_DIR", "GIT_WORK_TREE")
+
+
+def git_run(repo, *args, timeout=None, text=True, encoding=None, errors=None):
+    """`git -C <repo> <args>` -> CompletedProcess (stdout/stderr captured; never raises on a non-zero exit).
+    `text=False` returns bytes (a blob read); `encoding`/`errors` pass through for text callers."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUBBED_ENV}
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=text, encoding=encoding,
+                          errors=errors, timeout=timeout, env=env)
+
+
+def _git_proc(repo, *args):
     # errors="replace": a glossary line that is not valid UTF-8 must not crash the check (a crash is not a finding)
-    return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, errors="replace")
+    return git_run(repo, *args, errors="replace")
 
 
 _PLAIN = ("--no-ext-diff", "--no-textconv", "--no-color")   # a user's diff.external / textconv must not hide lines
@@ -112,7 +138,7 @@ def _rename_source(repo, glossary, staged, base, head):
     """The glossary's path before the change when the change renamed or moved it, else None."""
     args = ["diff", "--cached", "-M", "--name-status", *_PLAIN] if staged else \
         ["diff", "-M", "--name-status", *_PLAIN, base] + ([head] if head else [])
-    for ln in _git(repo, *args).stdout.splitlines():
+    for ln in _git_proc(repo, *args).stdout.splitlines():
         parts = ln.split("\t")
         if parts[0].startswith("R") and len(parts) == 3 and parts[2] == glossary:
             return parts[1]
@@ -122,7 +148,7 @@ def _rename_source(repo, glossary, staged, base, head):
 def _diff(repo, glossary, staged, base, head):
     if not staged:
         for rev in (base, head):
-            if rev is not None and _git(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").returncode:
+            if rev is not None and _git_proc(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").returncode:
                 raise CheckError(f"unresolvable revision: {rev!r}")
     old = _rename_source(repo, glossary, staged, base, head)
     paths = ["--", old, glossary] if old else ["--", glossary]
@@ -130,7 +156,7 @@ def _diff(repo, glossary, staged, base, head):
         args = ["diff", "--cached", "-U0", "-M", *_PLAIN, *paths]
     else:
         args = ["diff", "-U0", "-M", *_PLAIN, base] + ([head] if head else []) + paths
-    out = _git(repo, *args)
+    out = _git_proc(repo, *args)
     if out.returncode:
         raise CheckError(f"git diff failed: {out.stderr.strip()[:200]}")
     return out.stdout
@@ -183,32 +209,85 @@ def _usage():
     }
 
 
-def _parse(argv):
-    flags, i = {}, 0
-    while i < len(argv):
-        flag = argv[i]
-        if flag not in _FLAGS:
-            raise CheckError(f"unknown argument: {flag!r}")
-        if _FLAGS[flag]:
-            if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
-                raise CheckError(f"{flag} requires a value")
-            flags[flag[2:]] = argv[i + 1]
+# ---- strict argv: BEGIN (agent-kit #1625) ------------------------------------------------------------
+# Byte-identical in throughline land_gate.py, spec_surface.py, glossary_altitude.py and backlog tracker.py
+# (agent-kit tests keep the copies equal). A copy per file, not an import: land_gate.py is vendored as a
+# single file, and a suite may not import from another suite.
+# argparse is the ONE parser: it refuses a malformed argv AND builds the dict the dispatch reads, so no
+# second parser can disagree with it (a validator in front of the old parser blessed `--repo=/x`).
+ARGV_VALUE, ARGV_SWITCH, ARGV_OPTIONAL = "value", "switch", "optional"
+
+
+class _ArgvError(Exception):
+    pass
+
+
+class _StrictArgvParser(argparse.ArgumentParser):
+    def error(self, message):  # raise instead of exiting, so main() keeps returning an int
+        raise _ArgvError(message)
+
+
+def parse_strict_argv(cmd, arity, args, positionals=0, json_errors=True):
+    """Parse one subcommand's argv. Returns (flags, None) to dispatch on, or (None, exit_code).
+
+    `arity` maps each accepted flag to ARGV_VALUE (`--f <v>`; a bare `--f` is refused), ARGV_SWITCH
+    (a bare `--f` -> True; `--f <v>` is refused) or ARGV_OPTIONAL (absent, bare -> True, or `--f <v>`).
+    `flags` holds only the flags given, plus "_positional" (a list) when `positionals` > 0.
+    Refused with exit 2, before any side effect: an undeclared flag, a value flag with no value, a switch
+    given a value, a positional beyond `positionals`. `-h`/`--help` prints the flags and returns exit 0.
+    """
+    # The old parsers' token rule, kept: a value flag takes the next token unless it starts with `--`.
+    # Joining it as `--f=<v>` first stops argparse refusing a value that starts with `-` (`--body "- item"`).
+    joined, i = [], 0
+    while i < len(args):
+        name = args[i][2:] if args[i].startswith("--") else None
+        if arity.get(name) in (ARGV_VALUE, ARGV_OPTIONAL) and i + 1 < len(args) \
+                and not args[i + 1].startswith("--"):
+            joined.append(f"{args[i]}={args[i + 1]}")
             i += 2
         else:
-            flags[flag[2:]] = True
+            joined.append(args[i])
             i += 1
-    return flags
+    usage = sorted("--" + f for f in arity)
+    if "-h" in joined or "--help" in joined:
+        print(json.dumps({"command": cmd, "flags": usage, "positionals": positionals}))
+        return None, 0
+    parser = _StrictArgvParser(prog=cmd, add_help=False, allow_abbrev=False)
+    for name, kind in arity.items():
+        kw = {"dest": name, "default": argparse.SUPPRESS}
+        if kind == ARGV_SWITCH:
+            kw.update(action="store_const", const=True)
+        elif kind == ARGV_OPTIONAL:
+            kw.update(nargs="?", const=True)
+        parser.add_argument("--" + name, **kw)
+    if positionals:
+        parser.add_argument("_positional", nargs="*")
+    try:
+        flags = vars(parser.parse_args(joined))
+        extra = flags.get("_positional", [])[positionals:]
+        if extra:
+            raise _ArgvError("unrecognized arguments: " + " ".join(extra))
+    except _ArgvError as e:
+        msg = f"{cmd}: {e}"
+        print(json.dumps({"error": msg, "flags": usage}) if json_errors else f"{msg} (accepts: {' '.join(usage)})",
+              file=sys.stderr)
+        return None, 2
+    return flags, None
+# ---- strict argv: END --------------------------------------------------------------------------------
 
 
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else ""
-    if cmd in ("", "-h", "--help", "help") or "--help" in argv[2:]:
+    if cmd in ("", "-h", "--help", "help") or "--help" in argv[2:] or "-h" in argv[2:]:
         print(json.dumps(_usage(), indent=2))
         return 0
     try:
         if cmd != "check":
             raise CheckError(f"unknown command: {cmd!r}")
-        f = _parse(argv[2:])
+        f, rc = parse_strict_argv(
+            "check", {k[2:]: (ARGV_VALUE if takes else ARGV_SWITCH) for k, takes in _FLAGS.items()}, argv[2:])
+        if f is None:
+            return rc
         result = check(f.get("repo", "."), f.get("glossary", DEFAULT_GLOSSARY), bool(f.get("staged")),
                        f.get("base"), f.get("head"))
     except CheckError as exc:
