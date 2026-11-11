@@ -1,6 +1,6 @@
 """``tasks`` source — task-list items from a knowledge base, keyed to repos and items by identity.
 
-The cross-source companion to ``tracker``. It reads in three modes, chosen by the query's kinds (BR07):
+The cross-source companion to ``tracker``. It reads in two modes, chosen by the query's kinds (BR07):
 
 - ``context`` (``nodes``): the OPEN tasks that REFERENCE a repo, so ``context`` can join under one repo
   both its open issues (from the forge) and the standing tasks about it (iris#29). A task's repo linkage is
@@ -8,8 +8,9 @@ The cross-source companion to ``tracker``. It reads in three modes, chosen by th
   source extracts those references and emits a ``Relation(<repo-identity>, "has-task", <task id>)`` per
   referenced repo, leaving the matched/unmatched decision to the composer (BR06). A task with no reference
   contributes a node but no relation (outside the join, never noise in it).
-- ``chain``: the state (open or done) of the SPECIFIC ``^anchor`` items a work item references.
-- ``inbound``: every open and done task whose parsed refs CONTAIN one item key — the tasks citing that item.
+- ``chain``: the state (open or done) of the SPECIFIC ``^anchor`` items a work item references — also the
+  state of the tasks a store names as citing an item, for ``inbound`` (which tasks cite it is the store's
+  within-source resolution, BR01; this source never decides it).
 
 Source-agnostic by construction (BR02): the config declares WHICH CLI lists the tasks (open, and optionally
 done) and how to map its JSON — never a store/instance. The subprocess runner is injected so normalization

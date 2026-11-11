@@ -197,8 +197,9 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
 def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `^<anchor>`.")) -> None:
     """Show what cites one item, joined to its live state (read-only).
 
-    Reads the item's state, the tasks whose text references it, and the store records that link to it.
-    A source that could not be read is listed under UNKNOWN — never folded into 'no citations'.
+    Reads the item's state and the store records that cite it (its tasks among them, each with its
+    open/done state). A source that could not be read is listed under UNKNOWN — never folded into 'no
+    citations'; SEARCHED and NOT SEARCHED say what an absence covers.
     """
     if parse_key(key) is None:
         typer.echo(f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`", err=True)

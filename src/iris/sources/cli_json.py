@@ -3,8 +3,9 @@
 Config-driven so it names no specific tool: an instance declares a ``command`` (an argv template with a
 ``{query}`` placeholder), the ``items`` path to the result list, and a ``map`` of model field → dotted JSON
 path; that read yields grounding hits. An instance may also declare an ``inbound`` table — a second command
-with a ``{key}`` placeholder that lists the records citing one item, mapped into ``citation`` nodes (minus
-any ``skip`` locator prefixes); only such an instance serves the ``inbound`` kind. Any sovereign CLI that
+with a ``{key}`` placeholder that lists the records citing one item, mapped into ``citation`` nodes — or
+into ``task`` nodes keyed by anchor, for a record whose locator starts with the table's ``tasks`` prefix —
+minus any ``skip`` locator prefixes; only such an instance serves the ``inbound`` kind. Any sovereign CLI that
 emits JSON (a knowledge base, a notes tool, …) becomes a source through configuration alone — no code in
 the core references it. The subprocess is injected as a ``runner`` so normalization is testable without the
 tool installed.

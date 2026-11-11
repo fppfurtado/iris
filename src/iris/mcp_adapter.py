@@ -128,7 +128,8 @@ def chain(item: str) -> dict:
 def inbound(key: str) -> dict:
     """Show what cites one item (`<repo>#<n>` or `^<anchor>`), joined to its live state, off the SAME
     composer the CLI uses (read-only). `unknown` names every source that could not be read — a consumer
-    must never read empty `tasks`/`citations` as 'nothing cites it' while `unknown` is non-empty."""
+    must never read empty `tasks`/`citations` as 'nothing cites it' while `unknown` is non-empty, and an
+    absence covers only the `searched` sources — never what `not_covered` lists."""
     if parse_key(key) is None:
         return {"error": f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`"}
     config = active_config()
