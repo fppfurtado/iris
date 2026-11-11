@@ -247,7 +247,7 @@ def test_cli_inbound_unknown_source_never_claims_no_records(monkeypatch):
 
 def test_cli_inbound_nothing_cites_and_nothing_unknown(monkeypatch):
     _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult())
-    monkeypatch.setattr("iris._present.inbound_sources", lambda config: ["notes"])
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config, registry=None: ["notes"])
     result = runner.invoke(cli.app, ["inbound", "iris#34"])
     assert result.exit_code == 0
     assert "# no records in notes cite iris#34" in result.stderr
@@ -301,7 +301,7 @@ def test_cli_inbound_degraded_task_state_pass_is_unknown(monkeypatch):
 
 
 def test_cli_inbound_always_prints_searched_and_not_searched(monkeypatch):
-    monkeypatch.setattr("iris._present.inbound_sources", lambda config: ["notes"])
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config, registry=None: ["notes"])
     _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_CITE]))
     out = runner.invoke(cli.app, ["inbound", "iris#34"]).stdout
     assert "## searched\nnotes\n" in out
@@ -310,7 +310,7 @@ def test_cli_inbound_always_prints_searched_and_not_searched(monkeypatch):
 
 
 def test_cli_inbound_with_no_inbound_source_never_claims_no_records(monkeypatch):
-    monkeypatch.setattr("iris._present.inbound_sources", lambda config: [])
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config, registry=None: [])
     _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult())
     result = runner.invoke(cli.app, ["inbound", "iris#34"])
     assert "no records" not in result.output

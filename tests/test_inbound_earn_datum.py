@@ -100,7 +100,7 @@ def _config_and_registry() -> tuple[Config, Registry]:
 
 def _run(key: str):
     config, registry = _config_and_registry()
-    return inbound_context(config, key, lambda c, q: federate(c, q, registry))
+    return inbound_context(config, key, federate, registry)
 
 
 def _by_file(nodes) -> Counter:
@@ -153,3 +153,15 @@ def test_prefix_pairs_never_borrow_the_longer_keys_records():
         assert not ({n.id for n in a.citations} & {n.id for n in b.citations}), (short, long)
         assert not ({t.id for t in a.tasks} & {t.id for t in b.tasks}), (short, long)
         assert a.citations == [] and a.tasks == []
+
+
+def test_searched_names_the_sources_of_the_registry_actually_read():
+    # Review finding 2: `searched` resolves against the same registry the passes federate through.
+    ctx = _run("iris#34")
+    assert ctx.searched == ["mneme"]
+    config, registry = _config_and_registry()
+    renamed = Config(sources=[SourceSpec(name="kb", type="cli-json", options=config.sources[1].options)])
+    only = Registry()
+    only.register("cli-json", lambda name, opts: CliJsonSource(name, opts, runner=_store))
+    assert inbound_context(renamed, "iris#34", federate, only).searched == ["kb"]
+    assert inbound_context(renamed, "iris#34", federate, Registry()).searched == []  # nothing resolvable

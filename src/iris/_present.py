@@ -48,19 +48,22 @@ def inbound_sources(config, registry: Registry = DEFAULT) -> list[str]:
     ]
 
 
-def inbound_context(config, key: str, federate: Callable[..., FederationResult]) -> InboundContext:
+def inbound_context(
+    config, key: str, federate: Callable[..., FederationResult], registry: Registry = DEFAULT
+) -> InboundContext:
     """The ``iris inbound`` read, shared by the CLI and the MCP adapter (parity by construction).
 
     Three passes (Spec v2): the item's live state (``chain`` on the key), the records citing it
     (``inbound`` on the key — the store names the citing tasks by anchor), and, only when ≥1 task cites
     it, the state of those tasks (``chain`` on their anchors). ``federate`` is passed in so each surface
-    keeps its own seam.
+    keeps its own seam; ``registry`` is the one every pass AND ``searched`` resolve against, so the sources
+    named as searched are the sources read.
     """
-    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})))
-    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})))
+    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})), registry)
+    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})), registry)
     anchors = list(dict.fromkeys(n.id for n in citing.nodes if n.kind == "task"))
     task_state = None
     if anchors:
         text = " ".join(f"^{anchor}" for anchor in anchors)
-        task_state = federate(config, Query(text=text, kinds=frozenset({KIND_CHAIN})))
-    return compose_inbound(key, state, citing, task_state, searched=inbound_sources(config))
+        task_state = federate(config, Query(text=text, kinds=frozenset({KIND_CHAIN})), registry)
+    return compose_inbound(key, state, citing, task_state, searched=inbound_sources(config, registry))
