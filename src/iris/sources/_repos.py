@@ -32,6 +32,15 @@ _REPO_REF = re.compile(r"(?<![A-Za-z0-9_#])([a-z][a-z0-9._-]*)#(\d+)")
 # repo-ref's own boundary discipline. The within-store companion of the cross-repo ``token#N`` ref.
 _ANCHOR_REF = re.compile(r"(?<![A-Za-z0-9^])\^([a-z0-9]+)")
 
+# The body of an anchor — what follows ``^`` in ``_ANCHOR_REF``. A store locator that ends in ``#^<id>`` names a
+# task by this body (item inbound context v2, SP-T9).
+_ANCHOR_BODY = re.compile(r"[a-z0-9]+")
+
+
+def is_anchor_body(text: str) -> bool:
+    """True when ``text`` is exactly one anchor body (``8g58ft``), the id a ``^<anchor>`` ref names."""
+    return _ANCHOR_BODY.fullmatch(text) is not None
+
 
 @dataclass(frozen=True)
 class Ref:

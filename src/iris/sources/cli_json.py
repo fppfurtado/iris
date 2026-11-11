@@ -3,8 +3,9 @@
 Config-driven so it names no specific tool: an instance declares a ``command`` (an argv template with a
 ``{query}`` placeholder), the ``items`` path to the result list, and a ``map`` of model field → dotted JSON
 path; that read yields grounding hits. An instance may also declare an ``inbound`` table — a second command
-with a ``{key}`` placeholder that lists the records citing one item, mapped into ``citation`` nodes (minus
-any ``skip`` locator prefixes); only such an instance serves the ``inbound`` kind. Any sovereign CLI that
+with a ``{key}`` placeholder that lists the records citing one item, mapped into ``citation`` nodes — or
+into ``task`` nodes keyed by anchor, for a record whose locator starts with the table's ``tasks`` prefix —
+minus any ``skip`` locator prefixes; only such an instance serves the ``inbound`` kind. Any sovereign CLI that
 emits JSON (a knowledge base, a notes tool, …) becomes a source through configuration alone — no code in
 the core references it. The subprocess is injected as a ``runner`` so normalization is testable without the
 tool installed.
@@ -21,6 +22,7 @@ from iris.core.model import GroundHit, Node
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_HITS, KIND_INBOUND, Query, Source, SourceResult
 from iris.sources._json import dig
+from iris.sources._repos import is_anchor_body
 
 Runner = Callable[[list[str]], str]
 
@@ -85,6 +87,7 @@ class CliJsonSource:
         items_path: str = self._inbound.get("items", "")
         fields: dict[str, str] = dict(self._inbound.get("map", {}))
         skip: list[str] = list(self._inbound.get("skip", []))
+        tasks_prefix: str = str(self._inbound.get("tasks", ""))
         try:
             data = json.loads(self._runner(argv))
         except Exception as exc:
@@ -93,16 +96,33 @@ class CliJsonSource:
         if not isinstance(items, list):
             return SourceResult(ok=False, note="inbound: unexpected-shape (not an array)")
         nodes: list[Node] = []
+        misfit = False
         for item in items:
             if not isinstance(item, dict):
                 continue
             locator = str(dig(item, fields.get("locator", "source")) or "")
-            if not locator or any(locator.startswith(prefix) for prefix in skip):
+            if not locator:
+                continue
+            # ``tasks`` is classified BEFORE ``skip`` (v2): a ``skip`` prefix never drops a record the ``tasks``
+            # prefix claims, so a leftover ``skip`` of the task file cannot hide every task.
+            if tasks_prefix and locator.startswith(tasks_prefix):
+                anchor = locator[len(tasks_prefix):]
+                if is_anchor_body(anchor):
+                    # The store names the task; its state is read by anchor elsewhere (compose_inbound).
+                    nodes.append(Node(id=anchor, kind="task", title="", roles=[], source=self.name))
+                    continue
+                misfit = True  # the prefix matched but the rest is no anchor: shown, never silently a task
+            elif any(locator.startswith(prefix) for prefix in skip):
                 continue
             link_type = str(dig(item, fields.get("type", "type")) or "")
             roles = [link_type] if link_type else []
             nodes.append(Node(id=locator, kind="citation", title=locator, roles=roles, source=self.name))
-        return SourceResult(nodes=nodes)
+        note = (
+            f"inbound: a locator starts with the tasks prefix {tasks_prefix!r} but the rest is not an anchor"
+            if misfit
+            else ""
+        )
+        return SourceResult(nodes=nodes, note=note)
 
     def _hit(self, item: dict) -> GroundHit:
         age_path = self._map.get("age")

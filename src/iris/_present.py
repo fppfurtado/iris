@@ -20,7 +20,12 @@ other). Two relevance gates, in order:
 
 from __future__ import annotations
 
-from iris.core.compose import ComposedRepo, Composition
+from typing import Callable
+
+from iris.core.compose import ComposedRepo, Composition, InboundContext, compose_inbound
+from iris.core.federation import FederationResult
+from iris.core.registry import DEFAULT, Registry
+from iris.core.source import KIND_CHAIN, KIND_INBOUND, Query
 from iris.sources._repos import repo_refs
 
 
@@ -32,3 +37,33 @@ def relevant_repos(composition: Composition, task: str) -> list[ComposedRepo]:
         for rw in composition.repos
         if (rw.issues or rw.tasks) and (not scope or rw.repo.id in scope or bool(rw.issues))
     ]
+
+
+def inbound_sources(config, registry: Registry = DEFAULT) -> list[str]:
+    """The names of the configured sources that read ``inbound`` (their ``produces`` contains it)."""
+    return [
+        source.name
+        for source in registry.resolve(config)
+        if KIND_INBOUND in (getattr(source, "produces", None) or frozenset())
+    ]
+
+
+def inbound_context(
+    config, key: str, federate: Callable[..., FederationResult], registry: Registry = DEFAULT
+) -> InboundContext:
+    """The ``iris inbound`` read, shared by the CLI and the MCP adapter (parity by construction).
+
+    Three passes (Spec v2): the item's live state (``chain`` on the key), the records citing it
+    (``inbound`` on the key — the store names the citing tasks by anchor), and, only when ≥1 task cites
+    it, the state of those tasks (``chain`` on their anchors). ``federate`` is passed in so each surface
+    keeps its own seam; ``registry`` is the one every pass AND ``searched`` resolve against, so the sources
+    named as searched are the sources read.
+    """
+    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})), registry)
+    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})), registry)
+    anchors = list(dict.fromkeys(n.id for n in citing.nodes if n.kind == "task"))
+    task_state = None
+    if anchors:
+        text = " ".join(f"^{anchor}" for anchor in anchors)
+        task_state = federate(config, Query(text=text, kinds=frozenset({KIND_CHAIN})), registry)
+    return compose_inbound(key, state, citing, task_state, searched=inbound_sources(config, registry))

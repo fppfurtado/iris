@@ -48,8 +48,10 @@ frozen value objects and exposes no write path to any source.
   that cite one item by its parsed identity, joined to the item's live state; a degraded source is unknown,
   never "no citations".
 - **Relations:** the item is keyed by one `<repo>#<n>` or `^<id>` (BR06). Its live state comes from the
-  `chain` reads; the citing records from the `inbound` reads — tasks whose parsed refs contain the key, and
-  the store's own citation records (the store resolves which of its records cite the key, BR01).
+  `chain` reads. The citing records, tasks included, are the ones the store's inbound read returns (the
+  store resolves which of its records cite the key, BR01); iris reads only each citing task's state, by
+  anchor, through the `chain` read. The result also names the sources it searched and what none searches,
+  so an absence is never read beyond them.
 
 ### Node
 - **Definition:** a federated entity — a repo, a resource, a system, a concept, an issue — with `id`, `kind`,
@@ -131,8 +133,8 @@ frozen value objects and exposes no write path to any source.
   store field but derived from the `<repo>#<number>` references in the task's text (BR06: identity, not a
   carried key); a task naming no repo stays outside the join. In a `chain` read a SPECIFICALLY-REFERENCED
   anchor (`^<id>`) is resolved regardless of state, carrying its lifecycle state (`roles=["open"]` |
-  `["done"]`). In an `inbound` read every task, open and done, whose parsed refs contain the item's key is
-  modeled with its list state; the item itself is never its own citing task.
+  `["done"]`). In an `inbound` read a task is one the store's inbound read names as citing the key; its
+  list state comes from the `chain` read, and it is never the item itself.
 
 ### Citation
 - **Parent:** Node (`kind="citation"`).

@@ -13,11 +13,11 @@ from dataclasses import asdict
 from fastmcp import FastMCP
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
-from iris._present import relevant_repos
+from iris._present import inbound_context, relevant_repos
 from iris.config import Config, active_config
-from iris.core.compose import compose_inbound, compose_referenced_nodes, compose_repo_issues, is_gate_marked
+from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import federate
-from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_INBOUND, KIND_NODES, Query
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, Query
 from iris.sources._repos import parse_key
 from iris.telemetry import log_request
 
@@ -128,13 +128,13 @@ def chain(item: str) -> dict:
 def inbound(key: str) -> dict:
     """Show what cites one item (`<repo>#<n>` or `^<anchor>`), joined to its live state, off the SAME
     composer the CLI uses (read-only). `unknown` names every source that could not be read — a consumer
-    must never read empty `tasks`/`citations` as 'nothing cites it' while `unknown` is non-empty."""
+    must never read empty `tasks`/`citations` as 'nothing cites it' while `unknown` is non-empty, and an
+    absence covers only the `searched` sources — never what `not_covered` lists. Each task carries `state`:
+    `open`, `done`, or `unknown` (the store names it as citing, but no task list resolved it)."""
     if parse_key(key) is None:
         return {"error": f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`"}
     config = active_config()
-    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})))
-    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})))
-    composed = compose_inbound(key, state, citing)
+    composed = inbound_context(config, key, federate)
     log_request(
         "inbound",
         key,
@@ -146,10 +146,12 @@ def inbound(key: str) -> dict:
     return {
         "key": composed.key,
         "item": asdict(composed.item) if composed.item is not None else None,
-        "tasks": [asdict(n) for n in composed.tasks],
+        "tasks": [{**asdict(n), "state": n.roles[0] if n.roles else "unknown"} for n in composed.tasks],
         "citations": [asdict(n) for n in composed.citations],
         "unknown": list(composed.unknown),
         "notes": composed.notes,
+        "searched": list(composed.searched),
+        "not_covered": list(composed.not_covered),
     }
 
 

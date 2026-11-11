@@ -8,12 +8,12 @@ import typer
 
 import iris.sources  # noqa: F401  (registers the built-in sources)
 from iris.config import Config, active_config
-from iris._present import relevant_repos
-from iris.core.compose import compose_inbound, compose_referenced_nodes, compose_repo_issues, is_gate_marked
+from iris._present import inbound_context, relevant_repos
+from iris.core.compose import compose_referenced_nodes, compose_repo_issues, is_gate_marked
 from iris.core.federation import FederationResult, federate
 from iris.core.membership import compose_membership
 from iris.core.model import Node
-from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_INBOUND, KIND_NODES, KIND_UNIVERSE, Query
+from iris.core.source import KIND_CHAIN, KIND_HITS, KIND_NODES, KIND_UNIVERSE, Query
 from iris.sources._repos import parse_key
 from iris.telemetry import log_request
 
@@ -197,16 +197,15 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
 def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `^<anchor>`.")) -> None:
     """Show what cites one item, joined to its live state (read-only).
 
-    Reads the item's state, the tasks whose text references it, and the store records that link to it.
-    A source that could not be read is listed under UNKNOWN — never folded into 'no citations'.
+    Reads the item's state and the store records that cite it (its tasks among them, each with its
+    open/done state). A source that could not be read is listed under UNKNOWN — never folded into 'no
+    citations'; SEARCHED and NOT SEARCHED say what an absence covers.
     """
     if parse_key(key) is None:
         typer.echo(f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`", err=True)
         raise typer.Exit(2)
     config = _load_config()
-    state = federate(config, Query(text=key, kinds=frozenset({KIND_CHAIN})))
-    citing = federate(config, Query(text=key, kinds=frozenset({KIND_INBOUND})))
-    composed = compose_inbound(key, state, citing)
+    composed = inbound_context(config, key, federate)
 
     typer.echo("## item")
     if composed.item is None:
@@ -217,7 +216,10 @@ def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `
     if composed.tasks:
         typer.echo(f"## tasks citing {composed.key}")
         for node in composed.tasks:
-            typer.echo(f"^{node.id}  [{'/'.join(node.roles)}]  {_oneline(node.title)}")
+            if node.roles:
+                typer.echo(f"^{node.id}  [{'/'.join(node.roles)}]  {_oneline(node.title)}")
+            else:
+                typer.echo(f"^{node.id}  [state unknown]")
     if composed.citations:
         typer.echo("## citations")
         for node in composed.citations:
@@ -227,8 +229,17 @@ def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `
         typer.echo("## unknown")
         for name in composed.unknown:
             typer.echo(name)
-    elif not composed.tasks and not composed.citations:
-        typer.echo(f"# no records cite {composed.key}", err=True)
+    typer.echo("## searched")
+    for name in composed.searched:
+        typer.echo(name)
+    typer.echo("## not searched")
+    for entry in composed.not_covered:
+        typer.echo(entry)
+    if not composed.unknown and not composed.tasks and not composed.citations:
+        if composed.searched:
+            typer.echo(f"# no records in {', '.join(composed.searched)} cite {composed.key}", err=True)
+        else:
+            typer.echo("# no configured source reads inbound — nothing was searched", err=True)
 
     for note in composed.notes:
         typer.echo(f"# {note}", err=True)

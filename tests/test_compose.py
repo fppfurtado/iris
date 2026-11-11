@@ -215,3 +215,46 @@ def test_inbound_anchor_key_resolves_the_task_node():
     task = Node(id="8g58ft", kind="task", title="t", roles=["open"], source="gtd")
     ctx = compose_inbound(" ^8g58ft ", FederationResult(nodes=[task]), FederationResult())
     assert ctx.item == task and ctx.key == "^8g58ft"
+
+
+# --- SP-T10 (Spec v2): task state from the third pass ----------------------------------------------
+
+
+def _store_task(anchor: str) -> Node:
+    return Node(id=anchor, kind="task", title="", roles=[], source="notes")
+
+
+def test_inbound_task_takes_title_and_roles_from_task_state():
+    done = Node(id="d1", kind="task", title="done: iris#34 first pass", roles=["done"], source="gtd")
+    inbound = FederationResult(nodes=[_store_task("d1"), _store_task("x9")])
+    ctx = compose_inbound("iris#34", FederationResult(), inbound, FederationResult(nodes=[done]))
+    assert [(t.id, t.title, t.roles) for t in ctx.tasks] == [
+        ("d1", "done: iris#34 first pass", ["done"]),
+        ("x9", "", []),  # absent from task_state: kept, state unknown — the store said it cites
+    ]
+
+
+def test_inbound_anchor_key_never_lists_the_item_as_its_own_citing_task():
+    inbound = FederationResult(nodes=[_store_task("ab"), _store_task("t3")])
+    ctx = compose_inbound("^ab", FederationResult(), inbound, FederationResult())
+    assert [t.id for t in ctx.tasks] == ["t3"]
+
+
+def test_inbound_degraded_task_state_pass_is_unknown():
+    ctx = compose_inbound(
+        "iris#34", FederationResult(), FederationResult(nodes=[_store_task("d1")]),
+        FederationResult(degraded=["gtd"], notes=["gtd: chain: 1 list(s) unreadable"]),
+    )
+    assert ctx.unknown == ["gtd"] and "gtd: chain: 1 list(s) unreadable" in ctx.notes
+
+
+# --- SP-T11 (Spec v2): searched + not_covered on every result --------------------------------------
+
+
+def test_inbound_always_carries_searched_and_the_fixed_not_covered():
+    from iris.core.compose import NOT_COVERED
+
+    ctx = compose_inbound("iris#34", FederationResult(), FederationResult(), searched=["notes"])
+    assert ctx.searched == ["notes"]
+    assert ctx.not_covered == list(NOT_COVERED) and len(NOT_COVERED) == 2
+    assert compose_inbound("iris#34", FederationResult(), FederationResult()).searched == []

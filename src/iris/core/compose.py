@@ -12,7 +12,7 @@ dropped), not swallowed. Pure and read-only: it derives on read and persists not
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from iris.core.federation import FederationResult
 from iris.core.model import Node
@@ -220,20 +220,45 @@ class InboundContext:
     citations: list[Node] = field(default_factory=list)
     unknown: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # What an absence of records covers (Spec v2, iris#62 part 2): the sources read for ``inbound``, and what
+    # no configured source searches. Without them an empty result reads as "nothing anywhere cites it".
+    searched: list[str] = field(default_factory=list)
+    not_covered: list[str] = field(default_factory=list)
 
 
-def compose_inbound(key: str, state: FederationResult, inbound: FederationResult) -> InboundContext:
+# Fixed by the verb's design (Spec v2): no source reads forge items for citations of a key, and the citation
+# forms outside identity (Brief C3) are never matched.
+NOT_COVERED: tuple[str, ...] = (
+    "forge items citing the key (cross-forge fan-in)",
+    "citations written as a forge URL or a bare #<n> (outside identity)",
+)
+
+
+def compose_inbound(
+    key: str,
+    state: FederationResult,
+    inbound: FederationResult,
+    task_state: FederationResult | None = None,
+    searched: list[str] | None = None,
+) -> InboundContext:
     """Join the item's live state (``state``, a ``chain`` pass) to the records citing it (``inbound``).
 
-    The item is the state node whose id is the key's node id (``<slug>#<n>`` or the anchor id). Tasks and
-    citations keep the inbound pass's source order, de-duplicated by (kind, id). A source degraded in
-    either pass is named in ``unknown``.
+    The item is the state node whose id is the key's node id (``<slug>#<n>`` or the anchor id). The citing
+    tasks are the ones the store's inbound read names (Spec v2): each takes its ``title`` and ``roles``
+    (open/done) from the ``task_state`` node with the same id — a ``chain`` pass over those anchors — and an
+    unresolved one keeps ``roles=[]`` (state unknown, never dropped). A task equal to an anchor key is the
+    item itself, not a record citing it. Tasks and citations keep the inbound pass's source order,
+    de-duplicated by (kind, id). A source degraded in any pass is named in ``unknown``. ``searched`` names the
+    sources read for ``inbound``; ``not_covered`` is always the fixed :data:`NOT_COVERED`.
     """
     ref = parse_key(key)
     item: Node | None = None
     if ref is not None:
         node_id = f"{ref.slug}#{ref.number}" if ref.kind == "issue" else str(ref.anchor)
         item = next((n for n in state.nodes if n.id == node_id), None)
+    key_anchor = ref.anchor if ref is not None and ref.kind == "anchor" else None
+    task_nodes = task_state.nodes if task_state is not None else []
+    resolved = {n.id: n for n in task_nodes if n.kind == "task"}
     seen: set[tuple[str, str]] = set()
     tasks: list[Node] = []
     citations: list[Node] = []
@@ -241,17 +266,25 @@ def compose_inbound(key: str, state: FederationResult, inbound: FederationResult
         if (node.kind, node.id) in seen:
             continue
         if node.kind == "task":
+            if key_anchor is not None and node.id == key_anchor:
+                continue
+            found = resolved.get(node.id)
+            if found is not None:
+                node = replace(node, title=found.title, roles=list(found.roles))
             tasks.append(node)
         elif node.kind == "citation":
             citations.append(node)
         else:
             continue
         seen.add((node.kind, node.id))
+    passes = [state, inbound] + ([task_state] if task_state is not None else [])
     return InboundContext(
         key=key.strip(),
         item=item,
         tasks=tasks,
         citations=citations,
-        unknown=list(dict.fromkeys(state.degraded + inbound.degraded)),
-        notes=state.notes + inbound.notes,
+        unknown=list(dict.fromkeys(name for p in passes for name in p.degraded)),
+        notes=[note for p in passes for note in p.notes],
+        searched=list(searched or []),
+        not_covered=list(NOT_COVERED),
     )

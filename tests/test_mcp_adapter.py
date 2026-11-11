@@ -120,18 +120,28 @@ from iris.core.model import Node  # noqa: E402
 _FAKE_CONFIG = SimpleNamespace(sources=[])
 
 _ITEM = Node(id="iris#34", kind="issue", title="database as a source", roles=["open"], source="tracker")
-_TASK = Node(id="8g58ft", kind="task", title="chase iris#34 in a TJPA session\nmore", roles=["open"], source="gtd")
+_TASK = Node(id="8g58ft", kind="task", title="", roles=[], source="notes")  # as the store names it (v2)
+_TASK_STATE = Node(id="8g58ft", kind="task", title="chase iris#34 in a TJPA session\nmore", roles=["open"],
+                   source="gtd")
 _CITE = Node(id="journal/2026-09-04.md#a-block", kind="citation", title="journal/2026-09-04.md#a-block",
              roles=["refs"], source="notes")
 
 
-def _canned(monkeypatch, module, state=None, citing=None):
-    """Fake the two federation passes: the chain pass returns `state`, the inbound pass `citing`."""
+def _canned(monkeypatch, module, state=None, citing=None, task_state=None, seen=None):
+    """Fake the federation passes: the first chain pass returns `state`, the inbound pass `citing`, and
+    the second chain pass (the citing tasks' state, Spec v2) `task_state`. `seen` collects each query."""
+    chain_calls = []
+
     def fake_federate(config, query, *a, **k):
+        if seen is not None:
+            seen.append((sorted(query.kinds), query.text))
         if "inbound" in query.kinds:
             return citing or FederationResult()
         assert "chain" in query.kinds
-        return state or FederationResult()
+        chain_calls.append(query.text)
+        if len(chain_calls) == 1:
+            return state or FederationResult()
+        return task_state or FederationResult()
 
     monkeypatch.setattr(module, "federate", fake_federate)
     monkeypatch.setattr(module, "_load_config" if module is cli else "active_config", lambda *a, **k: _FAKE_CONFIG)
@@ -147,14 +157,19 @@ async def _call_inbound(key: str) -> dict:
 def test_mcp_inbound_returns_the_same_records_as_the_cli(monkeypatch):
     state = FederationResult(nodes=[_ITEM])
     citing = FederationResult(nodes=[_TASK, _CITE], degraded=["tracker"])
-    _canned(monkeypatch, mcp_adapter, state, citing)
-    _canned(monkeypatch, cli, state, citing)
+    task_state = FederationResult(nodes=[_TASK_STATE])
+    monkeypatch.setattr("iris._present.inbound_sources", lambda config, registry=None: ["notes"])
+    _canned(monkeypatch, mcp_adapter, state, citing, task_state)
+    _canned(monkeypatch, cli, state, citing, task_state)
 
     data = asyncio.run(_call_inbound("iris#34"))
     assert data["key"] == "iris#34" and data["item"]["id"] == "iris#34"
-    assert [t["id"] for t in data["tasks"]] == ["8g58ft"]
+    assert [(t["id"], t["roles"]) for t in data["tasks"]] == [("8g58ft", ["open"])]
     assert [c["id"] for c in data["citations"]] == ["journal/2026-09-04.md#a-block"]
     assert data["unknown"] == ["tracker"]
+    assert data["searched"] == ["notes"]
+    from iris.core.compose import NOT_COVERED
+    assert data["not_covered"] == list(NOT_COVERED)
 
     out = CliRunner().invoke(cli.app, ["inbound", "iris#34"]).stdout
     assert "^8g58ft" in out and "journal/2026-09-04.md#a-block" in out and "## unknown\ntracker" in out
@@ -164,3 +179,17 @@ def test_mcp_inbound_invalid_key_returns_error(monkeypatch):
     _canned(monkeypatch, mcp_adapter)
     data = asyncio.run(_call_inbound("not a key"))
     assert "error" in data
+
+
+
+def test_mcp_inbound_marks_an_unresolved_task_state_unknown(monkeypatch):
+    # Review finding 1: the CLI's `[state unknown]` has its MCP counterpart, an explicit `state`.
+    _canned(monkeypatch, mcp_adapter, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]),
+            FederationResult())
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert [(t["id"], t["roles"], t["state"]) for t in data["tasks"]] == [("8g58ft", [], "unknown")]
+
+    _canned(monkeypatch, mcp_adapter, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]),
+            FederationResult(nodes=[_TASK_STATE]))
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert [t["state"] for t in data["tasks"]] == ["open"]
