@@ -148,3 +148,51 @@ def test_inbound_failure_or_non_array_degrades_without_raising() -> None:
         Query(text="iris#34", kinds=frozenset({KIND_INBOUND}))
     )
     assert not shaped.ok and "not an array" in shaped.note
+
+
+# --- SP-T9 (Spec v2): the ``tasks`` locator prefix — the store names the citing tasks -------------
+
+_TASKS_INBOUND = {**_INBOUND, "tasks": "lists/tasks.md#^"}
+_TASK_RECORDS = json.dumps(
+    [
+        {"source": "journal/2026-09-08.md#a-block", "type": "refs"},
+        {"source": "lists/tasks.md#^8g58ft", "type": "refs"},
+        {"source": "lists/tasks.md#^", "type": "refs"},
+        {"source": "lists/tasks.md#^Not-An-Anchor", "type": "refs"},
+        {"source": "lists/tasks.md", "type": "refs"},
+    ]
+)
+
+
+def _read(inbound: dict, records: str):
+    src = CliJsonSource("notes", {**_OPTIONS, "inbound": inbound}, runner=lambda cmd: records)
+    return src.read(Query(text="iris#34", kinds=frozenset({KIND_INBOUND})))
+
+
+def test_tasks_prefix_emits_task_nodes_by_anchor_not_citations() -> None:
+    res = _read({**_TASKS_INBOUND, "skip": []}, json.dumps([{"source": "lists/tasks.md#^8g58ft", "type": "refs"}]))
+    assert res.ok
+    assert [(n.kind, n.id, n.title, n.roles) for n in res.nodes] == [("task", "8g58ft", "", [])]
+    assert res.note == ""
+
+
+def test_without_tasks_prefix_every_record_is_as_sp_t3() -> None:
+    res = _read({**_INBOUND, "skip": []}, json.dumps([{"source": "lists/tasks.md#^8g58ft", "type": "refs"}]))
+    assert [(n.kind, n.id) for n in res.nodes] == [("citation", "lists/tasks.md#^8g58ft")]
+
+
+def test_prefix_without_an_anchor_remainder_is_a_citation_with_a_note() -> None:
+    res = _read({**_TASKS_INBOUND, "skip": []}, _TASK_RECORDS)
+    kinds = [(n.kind, n.id) for n in res.nodes]
+    assert ("task", "8g58ft") in kinds
+    assert ("citation", "lists/tasks.md#^") in kinds
+    assert ("citation", "lists/tasks.md#^Not-An-Anchor") in kinds
+    assert "tasks prefix" in res.note and "lists/tasks.md#^" in res.note
+
+
+def test_tasks_is_classified_before_skip() -> None:
+    # The leftover ``skip`` of the task file also covers the task records; they are still tasks.
+    res = _read(_TASKS_INBOUND, _TASK_RECORDS)
+    assert ("task", "8g58ft") in [(n.kind, n.id) for n in res.nodes]
+    # A record ``tasks`` does not claim keeps the ``skip`` behaviour.
+    assert "lists/tasks.md" not in [n.id for n in res.nodes]
