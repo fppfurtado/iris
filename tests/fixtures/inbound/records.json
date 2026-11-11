@@ -1,0 +1,114 @@
+{
+ "iris#5": [
+  {
+   "source": "journal/2026/2026-08-14.md#9ea9021c5e81",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-06.md#7a718569a6e0",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-10.md#ade30f6e9a3f",
+   "type": "refs"
+  },
+  {
+   "source": "knowledge/notes/iris-dogfood-publish-hold-decision-state.md",
+   "type": "refs"
+  }
+ ],
+ "iris#29": [
+  {
+   "source": "journal/2026/2026-09-05.md#a8d38e73ee3f",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-05.md#a9c29dbd01a0",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-06.md#9c2e2cfcb90f",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-06.md#9cb69cbc565b",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-06.md#7a718569a6e0",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-08.md#f424b81aff7c",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-09.md#fc8d45d854cb",
+   "type": "refs"
+  },
+  {
+   "source": "knowledge/notes/iris-dogfood-publish-hold-decision-state.md",
+   "type": "refs"
+  }
+ ],
+ "iris#38": [
+  {
+   "source": "journal/2026/2026-09-08.md#dc35a8e12bf3",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-08.md#f424b81aff7c",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-09.md#ffee1d086405",
+   "type": "refs"
+  },
+  {
+   "source": "knowledge/notes/iris-dogfood-publish-hold-decision-state.md",
+   "type": "refs"
+  }
+ ],
+ "iris#12": [
+  {
+   "source": "journal/2026/2026-09-04.md#12ffcc1a2d9b",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-04.md#c2263764f76e",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-05.md#a9c29dbd01a0",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-08.md#b094191ca049",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-09.md#be614896ff7f",
+   "type": "refs"
+  }
+ ],
+ "iris#34": [
+  {
+   "source": "journal/2026/2026-09-04.md#72e92e294a4f",
+   "type": "refs"
+  },
+  {
+   "source": "journal/2026/2026-09-09.md#be614896ff7f",
+   "type": "refs"
+  },
+  {
+   "source": "knowledge/gtd.md#^8g58ft",
+   "type": "refs"
+  },
+  {
+   "source": "knowledge/notes/iris-dogfood-publish-hold-decision-state.md",
+   "type": "refs"
+  }
+ ],
+ "iris#1": [],
+ "iris#3": []
+}
