@@ -1,16 +1,22 @@
 # PRD: Sensitive database sources — an access contract on the data path, with object-keyed knowledge
 
-- Frozen at: 2026-11-12
-- PRD version: v1
-- Status: frozen after approval on 2026-11-12 (operator "Sim" to "Congelo `prds/sensitive-database-source.PRD.md` como v1, com o segundo repositório no escopo?")
-- Independent read: ran — throughline:blind-critic, lenses J1/J3/J5/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 4 findings, all acted on (carrier table, J5 evidence, M4, R5, Open questions); conformance passed. The F3 replay design was read under J3 before it ran (5 findings, all acted on)
-- Source: Brief `briefs/sensitive-database-source.BRIEF.md` v1 (frozen 2026-11-12). Vision skipped: a
+- Frozen at: 2026-11-12 (v1; v2 the same day)
+- PRD version: v2
+- Status: frozen after approval on 2026-11-12 (operator "Sim" to "Congelo `prds/sensitive-database-source.PRD.md` como v1, com o segundo repositório no escopo?"); v2 frozen after approval on 2026-11-12 (operator "Sim" to "Posso congelar `prds/sensitive-database-source.PRD.md` como v2?")
+- Independent read: ran — throughline:blind-critic, lenses J1/J3/J5/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 4 findings, all acted on (carrier table, J5 evidence, M4, R5, Open questions); conformance passed. The F3 replay design was read under J3 before it ran (5 findings, all acted on). v2 — ran — throughline:blind-critic, lenses J1/J3/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 5 findings, all acted on in this draft: the part-(b) rule over-applied to a note that predates its failure → bound to "a case the note was not written from", checked per row (J1); "run" narrowed "answered" → "answered; INCONCLUSIVE does not answer" (J1); the invalidator over-claimed → scoped per test class, J5 falls only if both fail (J1); the precondition's rules contradicted test 2 → per-test rules, plus the missing "read under J3 before it runs" (J3); the amendment rationale contradicted test 1 → limited to the first replay's design. Conformance and C3 passed
+- Source: Brief `briefs/sensitive-database-source.BRIEF.md` v2 (frozen 2026-11-12; v1 the same day). Vision skipped: a
   capability inside an existing product (iris; its direction is the `agent-context-layer` PRD and the parent
   Brief `costura-iris-fonte`), path Brief → PRD → Spec chosen by the operator 2026-11-12. Evidence for the
   carrier candidates: the S4 comment on iris#34 and the probes run for this PRD's blind read (2026-11-12).
 - Product commitment confirmed: yes — 2026-11-12 (operator: the solution is software, a composite of an iris
   source adapter and a carrier outside iris for C4 and J7)
-- Amendments: none
+- Amendments: v1→v2 (2026-11-12, approved — operator "Sim"): follows Brief v1→v2. What changed: the J5-evidence
+  paragraph, the M1 J5 rows' part (b), the F3 assumption, the deliberate-exclusions note and the Spec
+  precondition are re-pointed from "a load-realistic replay of F3's case" to the Brief v2 "Settled when"
+  pair of tests, and PR7(b) is bound to a case the note was not written from. Why: the Brief's F3 was
+  restated from the 11-12 transcript. The general lesson was in context and was overridden twice. So the
+  first replay's design could not test keying, because both its arms already held the lesson, and a note
+  written from a failure carries its answer (Brief v2 S1(b))
 
 ## Context & users
 For the operator's agents (any session, any repository) answering operational demands by querying an
@@ -38,16 +44,17 @@ writes through iris (`:C1`).
   re-exposes one source's read earns its cost only through composition across sources. J5 (the query ⋈ the
   knowledge source, keyed by object identity) is that composition. Without J5 the iris carrier would rest on
   the parent Brief's transport-only value alone, which `:F6` and BR05 leave in tension (see Assumptions).
-- **J5's value is not yet evidenced (F3 replay, 2026-11-12).** The Brief's "Settled when" names a replay of
-  F3's case. It ran before this freeze: 2 arms × 3 fresh agents, scenario faithful to the 11-12 session. Arm A
-  had the unkeyed 10-28 index line; arm B also had the 10-28 note keyed to the audit table. Answers were
-  graded blind and shuffled, and the grader agreed with the designer on 6 of 6. Result: INCONCLUSIVE. All
-  six answers, arm A included, avoided the recorded failure, so the failure does not reproduce in a short
-  prompt where the unkeyed index line is salient. What the replay could not reproduce is the 11-12 condition:
-  about 45 index lines in a long, deadline-bound session. So the replay neither supports nor refutes keying.
+- **J5's value is not yet evidenced.** A first F3 replay (2026-11-12) ran INCONCLUSIVE: all six answers, the
+  unkeyed arm included, avoided the failure. A later read of the 11-12 transcript found that the replay could
+  not have tested keying. The general lesson about the audit store was already in the agent's context there,
+  read in-session, and the agent set it aside twice (Brief v2 F3). So F3 no longer supports J5's value.
+  Brief v2's "Settled when" names what can settle it: two tests, each with a same-content unkeyed arm.
+  - A general lesson keyed to the touched object vs the same lesson in context, on F3's own case.
+  - Object-specific knowledge keyed vs unkeyed, on a held-out case of the same class.
   Design, answers and grades are in private dossiers.
-  Consequence: no carrier decision may rest on J5's value until a load-realistic replay runs. J5 stays in
-  scope (a Brief job), and that replay is a precondition of the Spec's carrier decision (Open questions for Spec).
+  Consequence: no carrier decision may rest on J5's value until those tests have answered (an INCONCLUSIVE
+  run does not answer). J5 stays in scope (a Brief
+  job), and the tests are a precondition of the Spec's carrier decision (Open questions for Spec).
 
 ## Carrier candidates per job (the Spec decides; evidence as of 2026-11-12)
 Each eliminated candidate is stated with its disqualifier, whether that disqualifier is intrinsic or swappable,
@@ -120,7 +127,8 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   joined to the query by the object's identity — never by text similarity. — acceptance: the J5 replay of
   `:S1` passes for each of the three `:F2` J5 cases: (a) a note keyed to the touched object is returned
   (positive control: a query on that object returns it; a query on an unrelated object does not); and (b)
-  with the note in hand, the replayed first conclusion changes. Surfacing a note alone does not pass. —
+  with the note in hand, the replayed first conclusion changes on a held-out case of the same class, not on
+  a case the note was written from (M1). Surfacing a note alone does not pass. —
   serves `:J5` — satisfies `:S1` — priority: must
 - PR8: The capability is served on iris's CLI and MCP surfaces with the same results, reachable from any
   session and any working directory. — acceptance: one query run through the CLI and through the MCP tool,
@@ -169,11 +177,17 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   | RP-J4b | the same table lives in different schemas across instances (11-11) | resolves on both instances, or the result names the resolved schema |
   | RP-J5a | accents stored as HTML entities in a document-content column; a text search missed half the hits (11-04) | the column's note surfaces; the replayed conclusion no longer reports the partial count as complete |
   | RP-J5b | a column's meaning read from its name gave a wrong conclusion, nearly published (11-11) | the column's note surfaces; the replayed conclusion reads the column correctly |
-  | RP-J5c | an absence in the application audit log read as "nothing changed" (11-12) | the table's note (audit lives elsewhere; direct administrator writes leave none) surfaces; "nothing changed" is not concluded from the absence |
+  | RP-J5c | an absence in the application audit, plus a status flag still set, read as "not executed", while a direct administrator write had made the change without audit and without touching the flag (11-12) | the notes keyed to the touched objects surface: the audit store's (direct writes leave no audit) and the status flag's (a record is disabled through a link, not this flag); "not executed" is not concluded from the absence or the flag |
   | RP-J1 | standing risk (S4 W1/W2/W5) | refused on every connection; guarantee stated; a weaker-than-declared connection refused |
   | RP-J7 | standing risk (homologation writes guarded only by rollback) | script output returned, nothing committed |
 
   Positive control for every J5 case: the same query shape on an unrelated object surfaces no note.
+  Part (b) of every RP-J5 row ("the replayed conclusion …") is judged on a case the note was NOT written
+  from (Brief v2 S1(b)). A note written after its failure, from that failure's answer, is judged on a
+  held-out case of the same class: replaying its own failure with it would carry the answer. A note that
+  predates the failure (in RP-J5c, the audit-store note, last modified before 11-12) may be judged on the
+  row's own case. Which notes predate their failure is checked per row (by the note's dates) when the
+  private instantiation is written. The row's own case always tests part (a): the note surfaces, keyed.
 - M2 (from `:S2`): 100% of write attempts in the replay fail on every declared connection, each result
   stating which guarantee held; a connection mis-declared `server-enforced` is refused.
 - M3 (from `:S3`): zero hits for the private identifier list over the public repository at the effort's
@@ -222,18 +236,21 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   aggregate or analytics workloads against these connections.
 - The sessions that query these databases run in Claude Code. — invalidated if a session list shows a
   case-study query from another harness; PR9 then needs that harness too.
-- Notes keyed by object identity change the first conclusion (`:F3`, n=1). A replay without load
-  (2026-11-12) was INCONCLUSIVE: the unkeyed index line alone sufficed when salient. — invalidated if the
-  load-realistic replay (Open questions) reproduces the failure in its unkeyed arm and the keyed arm does no
-  better; then J5's value, and with it BR05's earn for the iris carrier, falls. In that case iris's role
-  reduces to J6 transport, and the carrier choice reopens.
+- Notes keyed by object identity change the first conclusion. This is not supported by F3 as restated (Brief
+  v2 `:F3`): the general lesson was in context, unkeyed, and was overridden twice. Each Brief v2 J5 test
+  scopes to its own class of knowledge. If test 1 returns "the keyed arm is still overridden" (no better
+  than the same lesson in context), keying general lessons earns nothing. If test 2 returns it (no better
+  than the same object-specific knowledge unkeyed), keying object-specific knowledge earns nothing. If both
+  return it, J5's value falls, and with it BR05's earn for the iris carrier. iris's role then reduces to J6
+  transport, and the carrier choice reopens. If only one returns it, J5 stays in scope for the other class.
 - The iris carrier earns under BR05 only through J5. — invalidated (in the other direction) if the domain
   model adopts the parent Brief's C6 transport-only value for sensitive sources; then J5 could be cut
   without re-justifying the carrier. Neither is decided here.
 
 ## Deliberate exclusions (from the Brief)
-- None narrowed. The Brief's "Settled when" has two halves. S4 ran, and this PRD extends it. The F3 replay
-  ran INCONCLUSIVE. So the vehicle for J1–J4 stays open into the Spec. That is not a narrowing: this PRD
+- None narrowed. The Brief's "Settled when" has two halves. S4 ran, and this PRD extends it. The J5 half (two
+  tests, Brief v2) has not run; a first F3 replay ran INCONCLUSIVE and is superseded. So the vehicle for J1–J4
+  stays open into the Spec. That is not a narrowing: this PRD
   commits requirements, not carriers.
 - Brief open questions: Q2 (does the parent's transport value hold against an existing server) is answered
   in part. A1 as a server does not compose with J5 and fails J2/J7. P (a proxy) was not in S4, and the Spec
@@ -242,13 +259,24 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   read) carries as M5 and R5; Q3 (J5 home) and Q5 (result model) carry to the Spec below.
 
 ## Open questions for Spec
-- **Precondition of the carrier decision:** run a load-realistic F3 replay before the Spec commits the carrier
-  for J1–J4.
-  - Both arms get the full case-study memory index as it was loaded on 11-12 (about 45 lines) and a long
-    preceding work transcript.
-  - Arm A must reproduce the failure first (≥2 of 3), else the replay is again INCONCLUSIVE.
-  - Grading is blind, as in the first replay.
-  - Until it runs, no carrier choice may rest on J5's value.
+- **Precondition of the carrier decision:** the two J5 tests that Brief v2's "Settled when" names have
+  answered (an INCONCLUSIVE run does not answer) before the Spec commits the carrier for J1–J4. Each design is
+  read under J3 before it runs. Rules for both tests, from the J3 read of a superseded replay design
+  (2026-11-12, 6 defects):
+  - Each test has a same-content unkeyed arm, so content and keying do not vary together.
+  - The labels cover a message that leans one way and also proposes a check.
+  - The verdict bars are mutually exclusive.
+  - Blinding removes every arm cue, including details only the note carries.
+  Test 1 (a general lesson keyed vs the same lesson in context, on F3's own case):
+  - The context matches the original session's at that point, including what it had already READ, not only
+    what its index listed.
+  - The cut and the instruction do not force a conclusion where the original session kept working.
+  - The unkeyed arm reproduces the recorded failure first (≥2 of 3), else the result is INCONCLUSIVE.
+  Test 2 (object-specific knowledge keyed vs unkeyed, on a held-out case of the same class):
+  - The case is one the knowledge was not written from.
+  - The unkeyed arm reaches the wrong first conclusion in ≥2 of 3 runs, else the case is too easy to
+    discriminate, and the result is INCONCLUSIVE.
+  Until both tests have answered, no carrier choice may rest on J5's value.
 - The carrier for J1–J4: a guard embedded in iris (G), or a local proxy on the data path (P) that iris
   queries through; with credential custody for C4 in either case.
 - J5's knowledge home and object identity: the knowledge store, a per-instance card in private
