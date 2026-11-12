@@ -1,15 +1,30 @@
 # Problem Brief: sensitive database sources — safe, knowledge-aware agent queries
 
-- Frozen at: 2026-11-12
+- Frozen at: 2026-11-12 (v1; v2 the same day)
 - Mode: mixed
 - Distilled from dossier: `.throughline/dossiers/database-as-source-sensitive-db-access.md`
-- Brief version: v1
-- Status: frozen after approval on 2026-11-12 (operator "sim" to "Congelo `briefs/sensitive-database-source.BRIEF.md` como v1?")
-- Independent read: ran — throughline:blind-critic, lenses J3/J5/J6 (2026-11-12); 6 findings, all acted on
-  in this draft: writable class restored as J7 with C1 bound to the iris carrier (J6 lens); F3 restated and
+- Brief version: v2
+- Status: v1 frozen after approval on 2026-11-12 (operator "sim" to "Congelo `briefs/sensitive-database-source.BRIEF.md` como v1?"); v2 frozen after approval on 2026-11-12 (operator "Sim" to "Posso congelar `briefs/sensitive-database-source.BRIEF.md` como v2?")
+- Independent read: v1 — ran — throughline:blind-critic, lenses J3/J5/J6 (2026-11-12); 6 findings, all acted on
+  in that draft: writable class restored as J7 with C1 bound to the iris carrier (J6 lens); F3 restated and
   the J5 replay given a positive control (J3); HTML-entity case reclassified J5 (J3/J5); S4 widened to three
-  alternatives + DBA-obtainability question (J5); credential facts F11 (J5); instance name removed from F10
-- Amendments: none
+  alternatives + DBA-obtainability question (J5); credential facts F11 (J5); instance name removed from F10.
+  v2 — ran — throughline:blind-critic, lenses J3/J5/J6 (2026-11-12); 5 findings, all acted on in this
+  draft: the forward test leaked the answer (the post-failure note carries it) → held-out case + a same-content
+  unkeyed arm (J3); the "override whatever the keying" reading was missing → named as an outcome, and F3 now
+  records the second override (J5/J1); "lost to a decoy" understated it → "set aside twice" (J3); the
+  problem statement said "nowhere a session reaches" while the ticket queue was reached → "in no note a
+  session loads"; S1 part (b) conflicted with the leak → bound to a case the note was not written from. C3
+  clean
+- Amendments: v1→v2 (2026-11-12, approved): F3 restated from the 11-12 session transcript (a general
+  lesson about the audit store was in the agent's context and was overridden; the object-specific knowledge
+  existed in no note); the F2 11-12 entry corrected to match; the problem statement's F3 sentence restated;
+  the J5 half of "Settled when" re-pointed from replaying F3's case to two tests (a general lesson keyed vs in
+  context, on F3's case; object-specific knowledge keyed vs unkeyed, on a held-out case); S1's J5 part (b)
+  bound to a case the note was not written from. Why: v1's F3 was built
+  from the memory index and the journal, not from the transcript, and the transcript contradicts it (found by
+  a blind J3 read of the load-realistic replay design, verified against the transcript). Operator approval of
+  the amendment direction: "Sim" (2026-11-12) to the recommended amendment; freeze of v2 approved: "Sim" (2026-11-12)
 - Parent frame: `working-state/programs/contexto-digital-integral/costura-iris-fonte.BRIEF.md — extends`
   (this is the frame that Brief's F5 deferred and armed: a database-type source, sensitive, instance only
   in private config). `briefs/item-inbound-context.BRIEF.md — adjacent` (that problem collects the records
@@ -27,8 +42,9 @@ correctness of the results rest on rules the agent must remember, and the record
 
 The cost is concrete: a credential pulled into a transcript, a runaway scan cancelled by hand on a shared
 production replica, and several wrong conclusions caught only before publication in documents a person
-signs (F2). In at least one case the knowledge that would have prevented the wrong first conclusion was
-already recorded, but not where the query was being made (F3).
+signs (F2). In one case a general lesson already in the agent's context was overridden by a misread column,
+and the object-specific knowledge that would have prevented the wrong conclusion was recorded in no note a
+session loads (F3).
 
 ## Jobs in scope
 - J1: For each declared database connection, establish the write guarantee that actually holds — enforced
@@ -90,8 +106,9 @@ Trigger-source: #12 · session journal or this tracker — fires when (outside) 
   object resolves in the right schema (J4). For a J5 case the replay passes only if (a) the recorded note is
   keyed to the very object the query touched (a positive control: a query on that object returns it, a
   query on an unrelated object does not) and (b) with the note in hand, the replayed first conclusion
-  changes — surfacing a note alone does not pass. The replay set is written down as the expected result
-  before design.
+  changes — surfacing a note alone does not pass. Part (b) is judged on a case the note was NOT written
+  from: a note written after a failure, from that failure's answer, would pass (b) on its own case by
+  carrying the answer. The replay set is written down as the expected result before design.
 - S2 — verifiable (write guarantee): on every declared connection an attempted write fails, and the result
   states which guarantee held (server-enforced or client-requested); a connection declared
   server-enforced that turns out client-requested is refused.
@@ -122,19 +139,30 @@ Trigger-source: #12 · session journal or this tracker — fires when (outside) 
   11-11); J5 ×3 (accents stored as HTML entities in a document-content column made a text search miss half
   the hits even with the right encoding, 11-04 — a property of the data, known only as a note; a column's
   meaning read from its name produced a wrong conclusion nearly published, 11-11; an absence in the
-  application audit log was read as "nothing changed" while the audit lives in a separate database and
-  direct administrator writes leave no audit, 11-12); outside the jobs ×2 (aggregate counts summed by eye,
+  application audit (queried in its separate history database) and a document status flag still set were
+  read as "not executed", while the change had been made by a direct administrator write that leaves no
+  audit and does not touch that flag, 11-12); outside the jobs ×2 (aggregate counts summed by eye,
   10-23; a "this is expected" claim drawn from a category name and refuted by a count, 11-10 — judgment,
   N2); plus one standing risk without an incident (homologation writes guarded only by rollback, N1). —
   basis: retrieved (case-study harness memory and iris#34 comments, read 2026-11-12).
-- F3: The class behind the 11-12 J5 failure (direct batch updates that leave no audit trail) had been
-  recorded on 2026-10-28 in the same repository's harness-memory store, and that store's index line for it
-  was loaded into the 11-12 session. But the index line described one instance (a court-unit migration)
-  by its own tables; the general lesson ("direct writes leave no application audit") sat only in the note's
-  body, keyed to nothing the 11-12 query touched. The first conclusion was still "nothing changed",
-  corrected only after searching the change-ticket queue. n=1: the knowledge reached the session but was not
-  keyed to the object being queried, so it was not applied. — basis: retrieved (memory note and index
-  line dated 10-28, file mtime; journal block 2026-11-12; checked 2026-11-12 after the blind read).
+- F3: The 11-12 J5 failure (F2) was not knowledge out of the session's reach. Earlier in that session the
+  agent had read the case study's access note, which states that the audit-history database does not record
+  direct writes. It then queried that database, found no matching operation, and wrote the caveat itself
+  ("a direct administrator UPDATE does not show in this log") — and set the lesson aside TWICE. First, it had
+  itself raised that a nulled link column might be the disabling done another way, and dropped that
+  hypothesis on the audit absence ("the nulled link was changed by no one"). Second, in its message, a
+  document status flag that still showed the documents active outweighed the caveat it had just written. The disabling had been done weeks earlier by a direct write that
+  nulls that link and leaves the flag untouched. Before 11-12 that mechanism was recorded only in the
+  change-ticket queue, in no note a session loads; it was recorded in the case-study repository's harness
+  memory after the failure, the same day. So F3 does not show that keying a GENERAL lesson to the touched
+  object changes a conclusion. The general lesson was in context, unkeyed, and it was overridden twice by an
+  inference from the data. OBJECT-SPECIFIC knowledge (what this flag does not mean; how this system disables
+  a record) existed in no note at the time. Whether that knowledge would have changed the conclusion is open:
+  an override of knowledge in context may recur whatever its form or keying. n=1. — basis: retrieved (case-study session transcript, read
+  2026-11-12 in the order: the access note's read, the agent's own null-link hypothesis, the audit query,
+  the note dropping that hypothesis, the failing message, the correction via the ticket queue; access note last modified 2026-10-21; mechanism note created 2026-11-12, after the
+  failure). The v1 statement of this fact (the lesson "sat only in the note's body, keyed to nothing the
+  11-12 query touched") was drawn from the memory index and the journal, and is superseded.
 - F4: Existing database servers for agents already cover part of J1–J3: one popular Postgres MCP server has
   a restricted mode that limits the agent to read-only transactions plus an execution-time limit; policy
   servers offer per-table/column rules or masking; the reference Postgres MCP server was deprecated after
@@ -183,8 +211,16 @@ Trigger-source: #12 · session journal or this tracker — fires when (outside) 
 - Vehicle: open — the jobs could be served by an existing server plus server-side roles and harness
   configuration, by a layer adapter, by a knowledge join alone, or by a mix.
 - Settled when: S4's comparison against the best existing server is recorded (cheapest disconfirming test:
-  configure that server in restricted mode against a read replica and replay the J2–J4 cases of F2), and
-  J5's replay (F3's case) shows whether a note keyed by object identity changes the first conclusion.
+  configure that server in restricted mode against a read replica and replay the J2–J4 cases of F2), and J5
+  testing has answered two questions, each with an arm that carries the same content unkeyed, so content and
+  keying do not vary together:
+  - Does keying a GENERAL lesson to the touched object change the first conclusion where the same lesson in
+    context does not? This is answerable on F3's own case without leaking the answer, because the general
+    lesson does not contain it.
+  - Does OBJECT-SPECIFIC knowledge, keyed, change the first conclusion on a case of the same class that the
+    knowledge was not written from? A case it was written from would carry the answer (S1).
+  Either test can return "the keyed arm is still overridden". That outcome says J5's value for the class is
+  not supported whatever the keying (F3). Each design is read under J3 before it runs.
 
 ## Open questions carried forward
 - What may an agent read from the case-study databases at all (credentials only, or also personal data
