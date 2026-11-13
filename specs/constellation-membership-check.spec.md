@@ -18,7 +18,7 @@
   the `[check]` table; (c) the check queries the `universe` kind alone; (d) a registry that could not be read
   is a skipped dimension, with no drift computed (review finding F1). The build's other open choices are
   recorded in `decisions/0001-constellation-check-build.md`.
-  v1.2 (2026-11-13, iris#61; DRAFT until the operator approves it at the PR) — one addition: a repo node's
+  v1.2 (2026-11-13, iris#61; approved by the operator's merge of PR iris#76) — one addition: a repo node's
   `tags` also carry the name of its descriptor's `spec.system` and the words of its registry section's own
   `tags =` line (Data model, Kind, Architecture consequence, SP-T8). Why: `repos --tag <cluster>` returned
   an empty list for every cluster, which read as "no repo in that cluster". Two facts were being dropped.
