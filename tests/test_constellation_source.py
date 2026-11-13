@@ -169,14 +169,54 @@ def test_declared_tags_come_first_and_the_system_is_not_duplicated(tmp_path) -> 
     assert _repo_tags(source.read(Query())) == {"alpha": ["b", "s"]}
 
 
-def test_without_spec_system_the_tags_are_the_declared_ones(tmp_path) -> None:
-    source = _system_source(tmp_path, {"alpha": "metadata:\n  tags: [b, a]\nspec:\n  type: cli\n"})
+def test_without_spec_system_the_tags_are_the_declared_ones_deduplicated(tmp_path) -> None:
+    source = _system_source(tmp_path, {"alpha": "metadata:\n  tags: [b, a, b]\nspec:\n  type: cli\n"})
     assert _repo_tags(source.read(Query())) == {"alpha": ["b", "a"]}
 
 
-def test_a_repo_without_descriptor_has_no_tags_whatever_its_registry_section_says(tmp_path) -> None:
+def test_registry_tag_words_follow_the_descriptor_tags_without_duplicates(tmp_path) -> None:
+    descriptor = "metadata:\n  tags: [b]\nspec:\n  system: s\n"
+    source = _system_source(tmp_path, {"alpha": descriptor}, registry_extra="tags = s x")
+    assert _repo_tags(source.read(Query())) == {"alpha": ["b", "s", "x"]}
+
+
+def test_a_repo_without_descriptor_carries_its_registry_tag_words(tmp_path) -> None:
     source = _system_source(tmp_path, {"alpha": None}, registry_extra="tags = x y")
-    assert _repo_tags(source.read(Query())) == {"alpha": []}
+    assert _repo_tags(source.read(Query())) == {"alpha": ["x", "y"]}
+
+
+def test_registry_tags_are_read_literally_from_the_sections_own_line(tmp_path) -> None:
+    plain, commented, indented = tmp_path / "plain", tmp_path / "commented", tmp_path / "indented"
+    for repo in (plain, commented, indented):
+        repo.mkdir()
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(
+        "[DEFAULT]\ntags = d\n\n"
+        f"[{plain}]\ncheckout = x\n\n"
+        f"[{commented}]\n# tags = c\n\n"
+        f"[{indented}]\ncheckout = x\n  tags = i\n",
+        encoding="utf-8",
+    )
+    result = ConstellationSource("constellation", {"mrconfig": str(mrconfig)}).read(Query())
+    # no [DEFAULT] inheritance, no commented line, no indented (continuation) line
+    assert _repo_tags(result) == {"plain": [], "commented": [], "indented": []}
+
+
+def test_spec_system_written_as_an_entity_ref_contributes_its_name(tmp_path) -> None:
+    source = _system_source(tmp_path, {"alpha": "spec:\n  system: system:default/s\n"})
+    assert _repo_tags(source.read(Query())) == {"alpha": ["s"]}
+
+
+def test_non_scalar_descriptor_values_contribute_no_tag(tmp_path) -> None:
+    source = _system_source(
+        tmp_path,
+        {
+            "listed": "spec:\n  system: [a, b]\n",
+            "mapped": "metadata:\n  tags: [ok, null, [x]]\nspec:\n  system: {name: a}\n",
+            "one-string": "metadata:\n  tags: finance\n",
+        },
+    )
+    assert _repo_tags(source.read(Query())) == {"listed": [], "mapped": ["ok"], "one-string": ["finance"]}
 
 
 def test_universe_query_carries_each_repos_own_system(tmp_path) -> None:
@@ -186,6 +226,9 @@ def test_universe_query_carries_each_repos_own_system(tmp_path) -> None:
     disk = root / "beta"
     (disk / ".git").mkdir(parents=True)
     (disk / "catalog-info.yaml").write_text("spec:\n  system: t\n", encoding="utf-8")
-    source = _system_source(tmp_path, {"alpha": "spec:\n  system: s\n"}, roots=[str(root)])
+    source = _system_source(
+        tmp_path, {"alpha": "spec:\n  system: s\n"}, registry_extra="tags = x", roots=[str(root)]
+    )
     result = source.read(Query(kinds=frozenset({KIND_UNIVERSE})))
-    assert _repo_tags(result) == {"alpha": ["s"], "beta": ["t"]}
+    # the registry repo carries its section's word; the disk-only repo has no section
+    assert _repo_tags(result) == {"alpha": ["s", "x"], "beta": ["t"]}

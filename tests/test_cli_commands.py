@@ -339,7 +339,10 @@ def _two_system_config(tmp_path: Path) -> Path:
         repo = tmp_path / name
         repo.mkdir()
         (repo / "catalog-info.yaml").write_text(f"spec:\n  system: {system}\n", encoding="utf-8")
-        body += f"[{repo}]\ncheckout = x\n\n"
+        body += f"[{repo}]\ncheckout = x\ntags = {system} word-{name}\n\n"
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    body += f"[{bare}]\ntags = word-first\n"
     mrconfig = tmp_path / ".mrconfig"
     mrconfig.write_text(body, encoding="utf-8")
     cfg = tmp_path / "sources.toml"
@@ -349,9 +352,30 @@ def _two_system_config(tmp_path: Path) -> Path:
     return cfg
 
 
+def _listed(result) -> list[str]:
+    return [line.split()[0] for line in result.stdout.splitlines() if line and not line.startswith("#")]
+
+
 def test_repos_tag_filter_matches_the_descriptor_system(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("IRIS_CONFIG", str(_two_system_config(tmp_path)))
     result = runner.invoke(app, ["repos", "--tag", "s"])
     assert result.exit_code == 0
-    listed = [line.split()[0] for line in result.stdout.splitlines() if line and not line.startswith("#")]
-    assert listed == ["first"]
+    assert _listed(result) == ["first"]
+
+
+def test_repos_tag_filter_matches_a_registry_tag_word(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("IRIS_CONFIG", str(_two_system_config(tmp_path)))
+    # a word only the registry carries: one repo with a descriptor, one without
+    assert _listed(runner.invoke(app, ["repos", "--tag", "word-first"])) == ["first", "bare"]
+    assert _listed(runner.invoke(app, ["repos", "--tag", "word-second"])) == ["second"]
+
+
+def test_context_renders_the_system_and_registry_words_of_a_joined_repo(tmp_path, monkeypatch) -> None:
+    cfg = _config_with_tracker(tmp_path)
+    repo = tmp_path / "meta-system"
+    (repo / "catalog-info.yaml").write_text("spec:\n  system: s\n", encoding="utf-8")
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(mrconfig.read_text(encoding="utf-8") + "tags = w\n", encoding="utf-8")
+    monkeypatch.setenv("IRIS_CONFIG", str(cfg))
+    result = runner.invoke(app, ["context", "some task on meta-system#5"])
+    assert "meta-system  [s, w]" in result.output

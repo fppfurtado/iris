@@ -39,7 +39,11 @@ def ground(query: str) -> list[dict]:
 
 @mcp.tool()
 def repos(tag: str | None = None) -> list[dict]:
-    """List repos with tags/roles, optionally filtered by tag (read-only)."""
+    """List repos with tags/roles, optionally filtered by tag (read-only).
+
+    A repo's tags include the system (cluster) its descriptor declares and the tag words of its registry
+    entry, so ``tag`` takes a cluster name or any registry tag word.
+    """
     config = active_config()
     result = federate(config, Query(tag=tag, kinds=frozenset({KIND_NODES})))
     nodes = [n for n in result.nodes if n.kind == "repo"]

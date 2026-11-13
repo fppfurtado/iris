@@ -204,7 +204,7 @@ def test_mcp_repos_tag_filter_matches_the_descriptor_system(tmp_path, monkeypatc
         repo = tmp_path / name
         repo.mkdir()
         (repo / "catalog-info.yaml").write_text(f"spec:\n  system: {system}\n", encoding="utf-8")
-        body += f"[{repo}]\ncheckout = x\n\n"
+        body += f"[{repo}]\ncheckout = x\ntags = word-{name}\n\n"
     mrconfig = tmp_path / ".mrconfig"
     mrconfig.write_text(body, encoding="utf-8")
     cfg = tmp_path / "sources.toml"
@@ -214,4 +214,7 @@ def test_mcp_repos_tag_filter_matches_the_descriptor_system(tmp_path, monkeypatc
     _, data = asyncio.run(_connect_and_call("s"))
 
     assert [r["id"] for r in data] == ["first"]
-    assert data[0]["tags"] == ["s"]
+    assert data[0]["tags"] == ["s", "word-first"]
+
+    _, by_word = asyncio.run(_connect_and_call("word-second"))
+    assert [r["id"] for r in by_word] == ["second"]
