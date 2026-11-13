@@ -193,3 +193,25 @@ def test_mcp_inbound_marks_an_unresolved_task_state_unknown(monkeypatch):
             FederationResult(nodes=[_TASK_STATE]))
     data = asyncio.run(_call_inbound("iris#34"))
     assert [t["state"] for t in data["tasks"]] == ["open"]
+
+
+# --- SP-T8 (Spec v1.2, iris#61): the MCP `repos` tool filters by the descriptor's system ---
+
+
+def test_mcp_repos_tag_filter_matches_the_descriptor_system(tmp_path, monkeypatch) -> None:
+    body = ""
+    for name, system in (("first", "s"), ("second", "t")):
+        repo = tmp_path / name
+        repo.mkdir()
+        (repo / "catalog-info.yaml").write_text(f"spec:\n  system: {system}\n", encoding="utf-8")
+        body += f"[{repo}]\ncheckout = x\n\n"
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(body, encoding="utf-8")
+    cfg = tmp_path / "sources.toml"
+    cfg.write_text(f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{mrconfig}"\n', encoding="utf-8")
+    monkeypatch.setenv("IRIS_CONFIG", str(cfg))
+
+    _, data = asyncio.run(_connect_and_call("s"))
+
+    assert [r["id"] for r in data] == ["first"]
+    assert data[0]["tags"] == ["s"]

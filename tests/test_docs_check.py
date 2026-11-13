@@ -42,3 +42,13 @@ def test_example_config_declares_an_inbound_stanza() -> None:
     notes = next(s for s in config.sources if s.type == "cli-json")
     assert "{key}" in notes.options["inbound"]["command"]
     assert notes.options["inbound"]["map"]["locator"]
+
+
+def test_docs_say_a_repos_tags_include_its_descriptor_system() -> None:
+    """SP-T8 (Spec v1.2): the README sources row and the glossary's Repo entry name `spec.system`."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    row = next(line for line in readme.splitlines() if line.startswith("| `constellation` |"))
+    assert "`spec.system`" in row
+    glossary = (ROOT / "docs" / "domain.md").read_text(encoding="utf-8")
+    entry = glossary[glossary.index("### Repo"):glossary.index("### Resource")]
+    assert "`spec.system`" in entry

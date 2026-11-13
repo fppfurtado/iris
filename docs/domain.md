@@ -89,7 +89,9 @@ frozen value objects and exposes no write path to any source.
 ### Repo
 - **Parent:** Node (`kind="repo"`).
 - **Definition:** a repository entity, identified by its checkout basename. Its origin is the repo registry,
-  or — in a universe read only — a checkout under an on-disk root or a forge org's listing.
+  or — in a universe read only — a checkout under an on-disk root or a forge org's listing. Its `tags` are
+  what its descriptor declares: `metadata.tags` and the system it belongs to (`spec.system`); a repo
+  without a descriptor has none.
 
 ### Resource
 - **Parent:** Node (`kind="resource"`).

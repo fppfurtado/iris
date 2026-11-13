@@ -2,8 +2,8 @@
 
 Reads the repo inventory from ``~/.mrconfig`` (realpath / symlink-aware, since the file is often rendered
 by a dotfiles manager) and enriches each repo from its ``catalog-info.yaml`` (Backstage-style, parsed by
-``_catalog``): the Component's ``metadata.tags`` → tags, ``spec.type`` → roles, and each ``spec.dependsOn``
-ref → a ``dependsOn`` relation (the raw ref also kept in ``attrs.depends_on``). Every ``kind: Resource``
+``_catalog``): the Component's ``metadata.tags`` followed by its ``spec.system`` → tags, ``spec.type`` →
+roles, and each ``spec.dependsOn`` ref → a ``dependsOn`` relation (the raw ref also kept in ``attrs.depends_on``). Every ``kind: Resource``
 document becomes a ``resource`` node hosted by the repo (a ``hosted-by`` relation; ``attrs.host`` /
 ``attrs.host_path`` name the host, ``attrs.dependency_of`` its declared consumers). A repo without a
 ``catalog-info.yaml`` is still returned as a node, and the result is flagged as incomplete-coverage.
@@ -51,7 +51,7 @@ def _nodes_from_catalog(
         id=name,
         kind="repo",
         title=metadata.get("description") or name,
-        tags=list(metadata.get("tags") or []),
+        tags=_tags(metadata, spec),
         roles=[spec["type"]] if spec.get("type") else [],
         source=source,
         attrs=node_attrs,
@@ -82,6 +82,17 @@ def _nodes_from_catalog(
         )
         relations.append(Relation(from_=res_id, type="hosted-by", to=name))
     return node, resources, relations
+
+
+def _tags(metadata: dict, spec: dict) -> list[str]:
+    """A repo's tags: the descriptor's ``metadata.tags`` then its ``spec.system``, without duplicates.
+
+    ``spec.system`` is the descriptor's own statement of the system (cluster) the component belongs to, so a
+    tag filter by that name answers from the descriptor — the registry's lines are not read for it.
+    """
+    declared = [str(tag) for tag in metadata.get("tags") or []]
+    system = spec.get("system")
+    return list(dict.fromkeys([*declared, *([str(system)] if system else [])]))
 
 
 def _is_checkout(path: Path) -> bool:

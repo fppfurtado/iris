@@ -328,3 +328,30 @@ def test_inbound_sources_names_only_sources_producing_inbound():
     reg.register("c", lambda name, opts: SimpleNamespace(name=name))  # no produces: never named
     config = Config(sources=[SourceSpec(name=n, type=n, options={}) for n in ("a", "b", "c")])
     assert inbound_sources(config, reg) == ["a"]
+
+
+# --- SP-T8 (Spec v1.2, iris#61): `repos --tag <system>` answers from the descriptors ---
+
+
+def _two_system_config(tmp_path: Path) -> Path:
+    body = ""
+    for name, system in (("first", "s"), ("second", "t")):
+        repo = tmp_path / name
+        repo.mkdir()
+        (repo / "catalog-info.yaml").write_text(f"spec:\n  system: {system}\n", encoding="utf-8")
+        body += f"[{repo}]\ncheckout = x\n\n"
+    mrconfig = tmp_path / ".mrconfig"
+    mrconfig.write_text(body, encoding="utf-8")
+    cfg = tmp_path / "sources.toml"
+    cfg.write_text(
+        f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{mrconfig}"\n', encoding="utf-8"
+    )
+    return cfg
+
+
+def test_repos_tag_filter_matches_the_descriptor_system(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("IRIS_CONFIG", str(_two_system_config(tmp_path)))
+    result = runner.invoke(app, ["repos", "--tag", "s"])
+    assert result.exit_code == 0
+    listed = [line.split()[0] for line in result.stdout.splitlines() if line and not line.startswith("#")]
+    assert listed == ["first"]

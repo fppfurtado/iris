@@ -74,7 +74,7 @@ maps `type` → factory); the remaining keys are that type's options. Five sourc
 
 | type | reads | serves |
 |---|---|---|
-| `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, tags, relations); on-disk `roots` for `check` | all commands |
+| `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, relations; a repo's tags are its descriptor's `metadata.tags` plus its `spec.system`); on-disk `roots` for `check` | all commands |
 | `cli-json` | any CLI that emits JSON, mapped into grounding hits; with an `inbound` table, the records (and tasks) citing an item | `ground`, `context`, `inbound` |
 | `tracker` | open issues per repo from a forge CLI (`gh`/`glab`), and a referenced issue's state | `context`, `chain`, `inbound` |
 | `tasks` | open (and done) task-list items from a knowledge base CLI; for `inbound`, the citing tasks' state | `context`, `chain`, `inbound` |
