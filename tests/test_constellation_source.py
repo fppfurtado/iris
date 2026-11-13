@@ -138,7 +138,7 @@ def test_resource_dependency_of_is_read_as_entity_names(tmp_path) -> None:
     assert res.attrs["dependency_of"] == ["a", "b"]
 
 
-# --- SP-T8 (Spec v1.2, iris#61): the descriptor's `spec.system` is one of the repo's tags ---
+# --- SP-T8 (Spec v1.2, iris#61): a repo's tags = descriptor tags + system name + registry tag words ---
 
 
 def _system_source(tmp_path: Path, repos: dict[str, str | None], registry_extra: str = "", **opts):
@@ -214,9 +214,15 @@ def test_non_scalar_descriptor_values_contribute_no_tag(tmp_path) -> None:
             "listed": "spec:\n  system: [a, b]\n",
             "mapped": "metadata:\n  tags: [ok, null, [x]]\nspec:\n  system: {name: a}\n",
             "one-string": "metadata:\n  tags: finance\n",
+            "numbered": "metadata:\n  tags: [yes, 7]\nspec:\n  system: 42\n",
         },
     )
-    assert _repo_tags(source.read(Query())) == {"listed": [], "mapped": ["ok"], "one-string": ["finance"]}
+    assert _repo_tags(source.read(Query())) == {
+        "listed": [],
+        "mapped": ["ok"],
+        "one-string": ["finance"],
+        "numbered": ["7", "42"],  # a number is a tag; a boolean (`yes`) is not
+    }
 
 
 def test_universe_query_carries_each_repos_own_system(tmp_path) -> None:

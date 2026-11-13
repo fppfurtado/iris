@@ -52,4 +52,4 @@ def test_docs_say_where_a_repos_tags_come_from() -> None:
     assert "`spec.system`" in row and "`tags =`" in row
     glossary = (ROOT / "docs" / "domain.md").read_text(encoding="utf-8")
     entry = glossary[glossary.index("### Repo"):glossary.index("### Resource")]
-    assert "`spec.system`" in entry and "registry" in entry
+    assert "`spec.system`" in entry and "tag words of its registry entry" in entry

@@ -120,9 +120,10 @@ def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:
 def repo_tags(mrconfig: Path) -> dict[Path, list[str]]:
     """Each ``mrconfig`` repo section's own tags: the whitespace-separated words of its ``tags =`` line.
 
-    Read literally, as ``checkout =`` is: only a line that starts the section's own ``tags`` key at column 0
-    counts (an indented line continues the previous value; a ``#`` line is a comment), and a ``[DEFAULT]``
-    section's value is not inherited. A section without the line has no tags.
+    ``tags`` is not a parameter the registry tool acts on; it is a line a registry's owner may write. It
+    is read literally: only a line that starts the section's own ``tags`` key at column 0 counts (an indented
+    line continues the previous value; a ``#`` line is a comment), and a ``[DEFAULT]`` section's value is
+    not inherited. A section without the line has no tags.
     """
     text = mrconfig.read_text(encoding="utf-8")
     tags: dict[Path, list[str]] = {}

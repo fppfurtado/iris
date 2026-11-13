@@ -22,9 +22,9 @@
   `tags` also carry the name of its descriptor's `spec.system` and the words of its registry section's own
   `tags =` line (Data model, Kind, Architecture consequence, SP-T8). Why: `repos --tag <cluster>` returned
   an empty list for every cluster, which read as "no repo in that cluster". Two facts were being dropped.
-  A descriptor states the system its component belongs to in `spec.system` (in the constellation this
-  Spec was written for, that value is the cluster in every descriptor read on 2026-11-13 — an observed
-  convention, not a rule recorded upstream), and the source read that document without the field. And the
+  A descriptor states the system its component belongs to in `spec.system`, and the source read that
+  document without the field. (Upstream rules that the descriptor carries the cluster; that `spec.system`
+  is the field holding it is observed — true of every descriptor read on 2026-11-13 — not ruled.) And the
   registry's sections carry tag words of their own, some of which no descriptor states (a second dimension
   beside the cluster; entries without a descriptor). The upstream arrangement this Spec's Source line
   refers to puts a member's identity, cluster included, in its descriptor, and treats the registry as a
@@ -116,10 +116,11 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
   3. the whitespace-separated words of the `tags =` line of its own registry section.
 
   A descriptor value that is not a text or number scalar (a list, a mapping, a boolean, null) contributes
-  nothing, and a `metadata.tags` written as one string is one tag. The registry line is read literally, as
-  the section's `checkout =` line already is: it must start at column 0 of the section's own body (an
-  indented line continues the previous value in the registry format; a `#` line is a comment), and a
-  `[DEFAULT]` section's value is not inherited. A repo with no descriptor carries the registry words alone;
+  nothing, and a `metadata.tags` written as one string is one tag. `tags =` is not a parameter the registry
+  tool acts on: it is a line a registry's owner may write in a section, and iris reads it when present. The
+  read is literal: the line must start at column 0 of the section's own body (in the registry format an
+  indented line continues the previous value and a `#` line is a comment), and a `[DEFAULT]` section's
+  value is not inherited (as for `checkout =`). A repo with no descriptor carries the registry words alone;
   a disk-origin repo has no registry section, so its descriptor's alone; a forge-origin node carries none.
   A Resource document's own `spec.system` is not read. The check reads no tag.
 - **Membership identity — ONE key for every check join: the forge slug `<host>/<path>`** (e.g.
@@ -478,14 +479,15 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   forge API coupling for no decision it changes.
 
 - [v1.2] **Reading only the registry's `tags =` lines, or only the descriptor's system.** Each alone was
-  built and discarded on 2026-11-13. The registry alone answers from a manifest that is not where a
+  built first and discarded on 2026-11-13 (the registry-only build before any commit; the descriptor-only
+  one is this branch's first commit). The registry alone answers from a manifest that is not where a
   member's system is declared. The descriptor alone leaves every word no descriptor states — a second
   dimension beside the cluster, and the entries without a descriptor — returning an empty list. The join
   (iris#61's option 1 as written: "ler … e juntar") is what SP-T8 builds.
 - [v1.2] **`[DEFAULT]` inheritance and continuation lines of the registry format.** Not read: iris reads a
-  section's own `tags =` line literally, as it reads `checkout =`. Value-rejected: no registry in view sets
-  tags in `[DEFAULT]`; resolving the registry tool's inheritance inside a public adapter would re-implement
-  that tool (BR01). Invalidator under Assumptions.
+  section's own `tags =` line. Value-rejected: no registry in view sets tags in `[DEFAULT]`; resolving the
+  registry format's inheritance inside a public adapter would re-implement the registry tool's parser
+  (BR01). Invalidator under Assumptions.
 - [v1.2] **Declaring the cluster again under `metadata.tags` in every descriptor** (iris#61's option 2).
   Value-rejected: `spec.system` already states it; a second field for the same fact invites divergence.
 - [v1.2] **An explicit "unknown" in place of an empty tag-filter result** (iris#61's option 3). Not built
@@ -522,12 +524,12 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   if the first real run reports `undeclared-member` items that are members by intent. Those are then
   backfill work, which is the check doing its job.
 
-- [v1.2] A descriptor's `spec.system` names what a consumer means by "cluster" — observed in every
-  descriptor read on 2026-11-13, ruled nowhere. Invalidated if a descriptor's system and the cluster its
+- [v1.2] A descriptor's `spec.system` names what a consumer means by "cluster" — the field mapping is
+  observed in every descriptor read on 2026-11-13, not ruled upstream. Invalidated if a descriptor's system and the cluster its
   owner intends diverge; the registry word then still answers the filter, and the divergence is visible as
   two tags.
 - [v1.2] No registry sets `tags` under `[DEFAULT]` or on a continuation line — invalidated the first time
-  one does: those repos would then lack a tag the registry tool itself applies, with no signal.
+  one does: those repos would then lack a word their registry's owner meant them to carry, with no signal.
 
 ## Open questions
 - Should `exclusion-invalid` also fire on a reason outside a fixed vocabulary (e.g. `study` / `third-party`)?

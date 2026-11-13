@@ -330,7 +330,7 @@ def test_inbound_sources_names_only_sources_producing_inbound():
     assert inbound_sources(config, reg) == ["a"]
 
 
-# --- SP-T8 (Spec v1.2, iris#61): `repos --tag <system>` answers from the descriptors ---
+# --- SP-T8 (Spec v1.2, iris#61): `repos --tag` answers from the descriptor's system and the registry's words ---
 
 
 def _two_system_config(tmp_path: Path) -> Path:
@@ -339,7 +339,7 @@ def _two_system_config(tmp_path: Path) -> Path:
         repo = tmp_path / name
         repo.mkdir()
         (repo / "catalog-info.yaml").write_text(f"spec:\n  system: {system}\n", encoding="utf-8")
-        body += f"[{repo}]\ncheckout = x\ntags = {system} word-{name}\n\n"
+        body += f"[{repo}]\ncheckout = x\ntags = word-{name}\n\n"
     bare = tmp_path / "bare"
     bare.mkdir()
     body += f"[{bare}]\ntags = word-first\n"

@@ -195,10 +195,10 @@ def test_mcp_inbound_marks_an_unresolved_task_state_unknown(monkeypatch):
     assert [t["state"] for t in data["tasks"]] == ["open"]
 
 
-# --- SP-T8 (Spec v1.2, iris#61): the MCP `repos` tool filters by the descriptor's system ---
+# --- SP-T8 (Spec v1.2, iris#61): the MCP `repos` tool filters by a system name or a registry word ---
 
 
-def test_mcp_repos_tag_filter_matches_the_descriptor_system(tmp_path, monkeypatch) -> None:
+def test_mcp_repos_tag_filter_matches_a_system_name_and_a_registry_word(tmp_path, monkeypatch) -> None:
     body = ""
     for name, system in (("first", "s"), ("second", "t")):
         repo = tmp_path / name
