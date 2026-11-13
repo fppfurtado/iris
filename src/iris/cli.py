@@ -45,7 +45,11 @@ def _oneline(text: str, width: int = 100) -> str:
 
 
 @app.command()
-def repos(tag: str = typer.Option(None, "--tag", help="Filter repos by tag.")) -> None:
+def repos(
+    tag: str = typer.Option(
+        None, "--tag", help="Filter repos by tag: a descriptor tag, a system (cluster) name, or a registry tag word."
+    ),
+) -> None:
     """List repos with their tags/roles, optionally filtered by tag (read-only)."""
     config = _load_config()
     result = federate(config, Query(tag=tag, kinds=frozenset({KIND_NODES})))

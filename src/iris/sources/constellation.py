@@ -2,11 +2,15 @@
 
 Reads the repo inventory from ``~/.mrconfig`` (realpath / symlink-aware, since the file is often rendered
 by a dotfiles manager) and enriches each repo from its ``catalog-info.yaml`` (Backstage-style, parsed by
-``_catalog``): the Component's ``metadata.tags`` → tags, ``spec.type`` → roles, and each ``spec.dependsOn``
-ref → a ``dependsOn`` relation (the raw ref also kept in ``attrs.depends_on``). Every ``kind: Resource``
+``_catalog``): ``spec.type`` → roles, and each ``spec.dependsOn`` ref → a ``dependsOn`` relation (the raw ref also kept in ``attrs.depends_on``). Every ``kind: Resource``
 document becomes a ``resource`` node hosted by the repo (a ``hosted-by`` relation; ``attrs.host`` /
 ``attrs.host_path`` name the host, ``attrs.dependency_of`` its declared consumers). A repo without a
 ``catalog-info.yaml`` is still returned as a node, and the result is flagged as incomplete-coverage.
+
+A repo's tags are what its descriptor declares — the Component's ``metadata.tags``, then the name of its
+``spec.system`` — followed by the words of its registry section's own ``tags =`` line (``_repos.repo_tags``),
+without duplicates. A repo with no descriptor has the registry words alone; one found only on disk has no
+registry section, so the descriptor's alone.
 
 Each repo node carries the facts a membership check joins on (``attrs``): its local ``path``, whether it
 has a ``descriptor``, its ``origin`` (``mrconfig`` | ``disk``), ``exists`` for registry entries, its forge
@@ -32,13 +36,13 @@ from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_NODES, KIND_UNIVERSE, Query, Source, SourceResult
 from iris.sources._catalog import parse_descriptor, parse_entity_ref
-from iris.sources._repos import identity, local_slug, repo_entries
+from iris.sources._repos import identity, local_slug, repo_entries, repo_tags
 
 _DEFAULT_DEPTH = 2
 
 
 def _nodes_from_catalog(
-    name: str, repo: Path, catalog: Path, source: str, attrs: dict
+    name: str, repo: Path, catalog: Path, source: str, attrs: dict, registry_tags: list[str]
 ) -> tuple[Node, list[Node], list[Relation]]:
     """The repo node, its resource nodes, and their relations, from one descriptor."""
     descriptor = parse_descriptor(catalog)
@@ -51,7 +55,7 @@ def _nodes_from_catalog(
         id=name,
         kind="repo",
         title=metadata.get("description") or name,
-        tags=list(metadata.get("tags") or []),
+        tags=_tags(metadata, spec, registry_tags),
         roles=[spec["type"]] if spec.get("type") else [],
         source=source,
         attrs=node_attrs,
@@ -82,6 +86,33 @@ def _nodes_from_catalog(
         )
         relations.append(Relation(from_=res_id, type="hosted-by", to=name))
     return node, resources, relations
+
+
+def _tags(metadata: dict, spec: dict, registry_tags: list[str]) -> list[str]:
+    """A repo's tags: the descriptor's ``metadata.tags``, the name of its ``spec.system``, then the registry
+    section's own tag words — first-seen order, without duplicates.
+
+    ``spec.system`` is a Backstage entity ref, so its NAME part is the tag (``system:default/x`` → ``x``). A
+    value that is not a text or number scalar (a list, a mapping, a boolean, null) contributes nothing; a
+    ``metadata.tags`` written as one string is one tag.
+    """
+    declared = metadata.get("tags")
+    if isinstance(declared, str):
+        declared = [declared]
+    elif not isinstance(declared, list):
+        declared = []
+    tags = [_scalar(tag) for tag in declared]
+    system = _scalar(spec.get("system"))
+    if system:
+        tags.append(parse_entity_ref(system)[2])
+    return list(dict.fromkeys(tag for tag in [*tags, *registry_tags] if tag))
+
+
+def _scalar(value: object) -> str:
+    """``value`` as stripped text when it is a string or a number; ``""`` for anything else."""
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return ""
+    return str(value).strip()
 
 
 def _is_checkout(path: Path) -> bool:
@@ -130,6 +161,7 @@ class ConstellationSource:
     def read(self, query: Query) -> SourceResult:
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
         entries = repo_entries(mrconfig)
+        registry_tags = repo_tags(mrconfig)
         nodes: list[Node] = []
         relations: list[Relation] = []
         missing = 0
@@ -141,7 +173,7 @@ class ConstellationSource:
                 "exists": repo.is_dir(),
                 "slug": local_slug(repo, checkout),
             }
-            if not self._add_repo(repo, attrs, nodes, relations):
+            if not self._add_repo(repo, attrs, nodes, relations, registry_tags.get(repo, [])):
                 missing += 1
         if query.kinds is not None and KIND_UNIVERSE in query.kinds:
             nodes.append(
@@ -173,23 +205,29 @@ class ConstellationSource:
                         continue
                     registered.add(real)
                     attrs = {"path": str(repo), "descriptor": False, "origin": "disk", "slug": local_slug(repo)}
-                    self._add_repo(repo, attrs, nodes, relations)
+                    self._add_repo(repo, attrs, nodes, relations, [])
         note = ""
         if missing:
             note = f"incomplete-coverage: {missing}/{len(entries)} repos lack catalog-info.yaml"
         return SourceResult(nodes=nodes, relations=relations, ok=True, note=note)
 
-    def _add_repo(self, repo: Path, attrs: dict, nodes: list[Node], relations: list[Relation]) -> bool:
-        """Append ``repo``'s nodes and relations; return whether it carries a descriptor."""
+    def _add_repo(
+        self, repo: Path, attrs: dict, nodes: list[Node], relations: list[Relation], registry_tags: list[str]
+    ) -> bool:
+        """Append ``repo``'s nodes and relations; return whether it carries a descriptor.
+
+        ``registry_tags`` are the words of the repo's registry section (empty for one found only on disk)."""
         name = identity(repo)
         catalog = repo / "catalog-info.yaml"
         if catalog.is_file():
-            node, resources, rels = _nodes_from_catalog(name, repo, catalog, "constellation", attrs)
+            node, resources, rels = _nodes_from_catalog(name, repo, catalog, "constellation", attrs, registry_tags)
             nodes.append(node)
             nodes.extend(resources)
             relations.extend(rels)
             return True
-        nodes.append(Node(id=name, kind="repo", title=name, source="constellation", attrs=attrs))
+        nodes.append(
+            Node(id=name, kind="repo", title=name, tags=list(registry_tags), source="constellation", attrs=attrs)
+        )
         return False
 
 

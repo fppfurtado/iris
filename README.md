@@ -74,7 +74,7 @@ maps `type` → factory); the remaining keys are that type's options. Five sourc
 
 | type | reads | serves |
 |---|---|---|
-| `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, tags, relations); on-disk `roots` for `check` | all commands |
+| `constellation` | an `mr` manifest + Backstage `catalog-info.yaml` files (repos, resources, relations; a repo's tags are its descriptor's `metadata.tags` and `spec.system` plus the words of its manifest section's `tags =` line); on-disk `roots` for `check` | all commands |
 | `cli-json` | any CLI that emits JSON, mapped into grounding hits; with an `inbound` table, the records (and tasks) citing an item | `ground`, `context`, `inbound` |
 | `tracker` | open issues per repo from a forge CLI (`gh`/`glab`), and a referenced issue's state | `context`, `chain`, `inbound` |
 | `tasks` | open (and done) task-list items from a knowledge base CLI; for `inbound`, the citing tasks' state | `context`, `chain`, `inbound` |
@@ -116,7 +116,7 @@ See [`sources.example.toml`](sources.example.toml) for the annotated reference.
 ## Use — CLI
 
 ```sh
-iris repos [--tag <tag>]      # list repos with their tags/roles (optionally filtered)
+iris repos [--tag <tag>]      # list repos with their tags/roles (filter by a tag, a system/cluster name or a manifest tag word)
 iris ground "<query>"         # ground a query across federated sources
 iris context "<task>"         # assemble the integral context relevant to a task
 iris chain "<item text>"      # resolve a work item's cross-repo dependency chain in one shot
@@ -234,7 +234,7 @@ clean for piping.
 `iris-mcp` exposes the **same** federated data off the same core, over MCP (stdio transport, zero infra):
 
 - tool **`ground(query)`** — ground a query across federated sources
-- tool **`repos(tag?)`** — list repos with tags/roles
+- tool **`repos(tag?)`** — list repos with tags/roles; `tag` takes a descriptor tag, a system (cluster) name or a manifest tag word
 - tool **`context(task)`** — repos ⋈ their open issues plus grounding (the same composed join the CLI renders)
 - tool **`chain(item)`** — a work item ⋈ its referenced nodes' live state, with candidate blockers and a distinct `unknown_unresolved` (the same composition the CLI renders)
 - tool **`inbound(key)`** — one item's live state ⋈ the tasks and records that cite it, with a distinct `unknown`, plus `searched` and `not_covered`; each task carries `state` (`open` / `done` / `unknown`) (the same composition the CLI renders)

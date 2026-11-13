@@ -110,8 +110,33 @@ def repo_paths(mrconfig: Path) -> list[Path]:
 def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:
     """Each ``mrconfig`` repo section as ``(path, checkout command)`` — the command is ``""`` when absent."""
     text = mrconfig.read_text(encoding="utf-8")
-    matches = list(_SECTION.finditer(text))
     entries: list[tuple[Path, str]] = []
+    for path, start, end in _repo_sections(text):
+        checkout = _CHECKOUT.search(text, start, end)
+        entries.append((path, checkout.group(1).strip() if checkout else ""))
+    return entries
+
+
+def repo_tags(mrconfig: Path) -> dict[Path, list[str]]:
+    """Each ``mrconfig`` repo section's own tags: the whitespace-separated words of its ``tags =`` line.
+
+    ``tags`` is not a parameter the registry tool acts on; it is a line a registry's owner may write. It
+    is read literally: only a line that starts the section's own ``tags`` key at column 0 counts (an indented
+    line continues the previous value; a ``#`` line is a comment), and a ``[DEFAULT]`` section's value is
+    not inherited. A section without the line has no tags.
+    """
+    text = mrconfig.read_text(encoding="utf-8")
+    tags: dict[Path, list[str]] = {}
+    for path, start, end in _repo_sections(text):
+        line = _TAGS.search(text, start, end)
+        tags[path] = line.group(1).split() if line else []
+    return tags
+
+
+def _repo_sections(text: str) -> list[tuple[Path, int, int]]:
+    """Each repo section of ``text`` as ``(path, body start, body end)`` — non-repo sections dropped."""
+    matches = list(_SECTION.finditer(text))
+    sections: list[tuple[Path, int, int]] = []
     for i, match in enumerate(matches):
         name = match.group("name").strip()
         if name in _NON_REPO_SECTIONS:
@@ -120,9 +145,8 @@ def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:
         if not (os.path.isabs(expanded) or "/" in expanded):
             continue
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        checkout = _CHECKOUT.search(text, match.end(), end)
-        entries.append((Path(expanded), checkout.group(1).strip() if checkout else ""))
-    return entries
+        sections.append((Path(expanded), match.end(), end))
+    return sections
 
 
 def identity(path: Path) -> str:
@@ -135,6 +159,7 @@ _URL_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://(?:[^@/]+@)?(?P<host>[^/:]+)(?::
 _URL_SCP = re.compile(r"^(?:[^@/\s]+@)?(?P<host>[^/:\s]+):(?P<path>[^\s]+)$")
 _URL_TOKEN = re.compile(r"""['"]?((?:[a-z][a-z0-9+.-]*://|[^\s'"@/]+@)[^\s'"]+)['"]?""", re.I)
 _CHECKOUT = re.compile(r"(?m)^\s*checkout\s*=\s*(.*)$")
+_TAGS = re.compile(r"(?m)^tags[ \t]*=[ \t]*(.*)$")
 _ORIGIN_URL = re.compile(r'(?ms)^\[remote\s+"origin"\]\s*$(?P<body>.*?)(?=^\[|\Z)')
 _URL_KEY = re.compile(r"(?m)^\s*url\s*=\s*(\S+)\s*$")
 

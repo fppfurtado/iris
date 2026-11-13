@@ -1,7 +1,7 @@
 # Spec: constellation membership & drift check — Resources, resource dependencies, explicit universe
 
 - Frozen at: 2026-10-28
-- Spec version: v1.1
+- Spec version: v1.2
 - Source: iris#48 (requirements 1–4 and its out-of-scope paragraph). The problem framing and the arrangement
   that assigns this capability to iris are upstream of this repo and private; iris#48 restates the
   requirements generically, and this Spec cites them as `Q1`–`Q4` (the issue's numbered items) plus `Q4a`–`Q4f`
@@ -18,6 +18,19 @@
   the `[check]` table; (c) the check queries the `universe` kind alone; (d) a registry that could not be read
   is a skipped dimension, with no drift computed (review finding F1). The build's other open choices are
   recorded in `decisions/0001-constellation-check-build.md`.
+  v1.2 (2026-11-13, iris#61; DRAFT until the operator approves it at the PR) — one addition: a repo node's
+  `tags` also carry the name of its descriptor's `spec.system` and the words of its registry section's own
+  `tags =` line (Data model, Kind, Architecture consequence, SP-T8). Why: `repos --tag <cluster>` returned
+  an empty list for every cluster, which read as "no repo in that cluster". Two facts were being dropped.
+  A descriptor states the system its component belongs to in `spec.system`, and the source read that
+  document without the field. (Upstream rules that the descriptor carries the cluster; that `spec.system`
+  is the field holding it is observed — true of every descriptor read on 2026-11-13 — not ruled.) And the
+  registry's sections carry tag words of their own, some of which no descriptor states (a second dimension
+  beside the cluster; entries without a descriptor). The upstream arrangement this Spec's Source line
+  refers to puts a member's identity, cluster included, in its descriptor, and treats the registry as a
+  checkout manifest checked against the descriptors for MEMBERSHIP; it records no check of the registry's
+  tag lines. So the two are joined, descriptor first, and neither replaces the other. No v1.1 requirement
+  changes; what changes for the existing commands is stated in the Architecture consequence.
 
 <!-- Non-normative orientation. Today the constellation source reads the mrconfig and the FIRST document
      of each catalog-info.yaml, and turns every spec.dependsOn into an untyped relation. This increment
@@ -71,6 +84,10 @@ sources.toml ──► constellation (mrconfig [+ roots, universe-kind only]) �
     universe kind, so the forge source is skipped (BR07) and constellation returns its mrconfig set exactly
     as today. New resource nodes are filtered out by every existing consumer (`n.kind == "repo"`, verified in
     `core/compose.py`, `_present.py`, `mcp_adapter.py`).
+  - [v1.2] Still true of the node set, the ids and the relations. A repo node's `tags` gain its system's
+    name and its registry section's tag words, so `repos` (CLI and MCP) and `context` (CLI rendering and MCP
+    result), which print or return a repo's tags, show them. That change is intended. `chain`, `inbound` and
+    `check` read no tag.
 
 **Interaction affordance / placement:** not applicable. There is no UI surface; the CLI command is a
 headless read whose primary consumer is a scheduler (exit code + JSON) and secondarily a human (text).
@@ -92,6 +109,20 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
   repos), so `repos`/`context`/`chain` see the same ids as today. Because a basename is not unique once roots
   are scanned, **the check never joins on node ids**: it joins local repos by `attrs.path` and identities by
   `attrs.slug`. A local repo node therefore also carries `depends_on` (list of raw `dependsOn` refs).
+- **Repo tags** [v1.2] — a repo node's `tags` are, in this order and without duplicates:
+  1. its descriptor Component's `metadata.tags`;
+  2. the NAME of its descriptor Component's `spec.system` — the field is a Backstage entity ref, read
+     through `parse_entity_ref`, so `system:default/x` and `x` both give `x`;
+  3. the whitespace-separated words of the `tags =` line of its own registry section.
+
+  A descriptor value that is not a text or number scalar (a list, a mapping, a boolean, null) contributes
+  nothing, and a `metadata.tags` written as one string is one tag. `tags =` is not a parameter the registry
+  tool acts on: it is a line a registry's owner may write in a section, and iris reads it when present. The
+  read is literal: the line must start at column 0 of the section's own body (in the registry format an
+  indented line continues the previous value and a `#` line is a comment), and a `[DEFAULT]` section's
+  value is not inherited (as for `checkout =`). A repo with no descriptor carries the registry words alone;
+  a disk-origin repo has no registry section, so its descriptor's alone; a forge-origin node carries none.
+  A Resource document's own `spec.system` is not read. The check reads no tag.
 - **Membership identity — ONE key for every check join: the forge slug `<host>/<path>`** (e.g.
   `github.com/some-org/some-repo`; `<path>` is the full repo path, GitLab subgroups included).
   - Local checkout: parsed from the `origin` URL in `.git/config` (scp-style `git@host:path(.git)`,
@@ -213,7 +244,8 @@ state, and the drift that would revive it is `archived-registered`.
   `produces = {nodes, universe}`; forge-repos declares `{universe}`. On a query whose kinds include
   `universe`, constellation adds the on-disk repos and resource nodes for every descriptor it reads. On a
   query without `universe`, it returns exactly today's result plus Resource nodes and typed relations for
-  mrconfig repos (harmless to consumers, which filter `kind == "repo"`).
+  mrconfig repos (harmless to consumers, which filter `kind == "repo"`). [v1.2] On either query a repo
+  node's tags follow the Repo tags rule of the Data model.
 - **Composer** — `compose_membership(result: FederationResult, check: dict) -> DriftReport`, pure (no I/O
   except reading mirror files, which it reports as `skipped` on failure).
 - **CLI** — `iris check [--json]`:
@@ -373,6 +405,43 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
   drift kinds and the three exit codes" (test greps the README for each kind name); "`sources.example.toml`
   SHALL parse with `load_config` and contain no non-placeholder org" (test). — depends on: SP-T6
 
+- SP-T8 [v1.2]: repo tags from the descriptor's system and the registry's tag words —
+  `sources/_repos.py` gains `repo_tags(mrconfig)` (each section's own `tags =` words) and
+  `constellation._nodes_from_catalog` builds a node's `tags` by the Repo tags rule. The module docstring,
+  the README sources row and command lines, the `repos` help of both surfaces and the glossary's Repo entry
+  say where a repo's tags come from (rewritten in place, not stacked). — implements iris#61 — acceptance
+  (EARS):
+  - "WHEN a descriptor holds `spec.system: s` and no `metadata.tags`, and its registry section holds no
+    `tags =` line, the repo node SHALL carry `tags == ["s"]`";
+  - "WHEN a descriptor holds `metadata.tags: [b, s, b]` and `spec.system: s`, the repo node SHALL carry
+    `tags == ["b", "s"]`";
+  - "WHEN a descriptor holds `metadata.tags: [b, a, b]` and no `spec.system`, the repo node SHALL carry
+    `tags == ["b", "a"]`";
+  - "WHEN a descriptor holds `metadata.tags: [b]` and `spec.system: s` and its registry section holds
+    `tags = s x`, the repo node SHALL carry `tags == ["b", "s", "x"]`";
+  - "WHEN a repo has no descriptor and its registry section holds `tags = x y`, the repo node SHALL carry
+    `tags == ["x", "y"]`";
+  - "a `[DEFAULT]` section's `tags =` line, a commented `# tags = c` line and an indented `  tags = i` line
+    SHALL each contribute no tag";
+  - "WHEN `spec.system` is `system:default/s`, the repo node SHALL carry the tag `s`";
+  - "WHEN `spec.system` is a list or a mapping, or `metadata.tags` holds a null or a nested list, that
+    value SHALL contribute no tag; WHEN `metadata.tags` is the string `finance`, the repo node SHALL carry
+    `tags == ["finance"]`";
+  - "WHEN a query's kinds include `universe`, a registry repo SHALL carry its system and its section's
+    words, and a disk-origin repo its descriptor's system only";
+  - "WHEN `iris repos --tag s` runs on a config where one repo's descriptor declares `spec.system: s` and
+    another's declares `t`, the output SHALL list the first and not the second; WHEN it runs with a word
+    only the registry carries, it SHALL list every repo whose section holds that word, with or without a
+    descriptor" (through the Typer app);
+  - "WHEN the MCP `repos` tool is called with a system name, or with a word only the registry carries, it
+    SHALL return exactly the repos carrying it" (the surface iris#61 was reported on);
+  - "WHEN `iris context` joins a repo whose descriptor declares `spec.system: s` and whose registry section
+    holds `tags = w`, the rendered repo line SHALL show `[s, w]`";
+  - "the README sources row SHALL name `spec.system` and the `tags =` line, and the glossary's Repo entry
+    SHALL name `spec.system` and the registry" (test greps both).
+  Persisted tests in `tests/test_constellation_source.py`, `tests/test_cli_commands.py`,
+  `tests/test_mcp_adapter.py` and `tests/test_docs_check.py`. — depends on: SP-T1
+
 ## Coverage check (every in-scope Q* -> ≥1 task)
 - Q1 (Resource entities) -> SP-T1, SP-T7
 - Q2 (typed resource dependencies, reverse view derivable) -> SP-T1 (the `dependsOn` relations + resource
@@ -386,6 +455,7 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
 - Q4e -> SP-T1, SP-T5 (`one-end-only`: consumer `dependsOn` set vs host `dependencyOf` set, absent = empty)
 - Q4f -> SP-T4, SP-T5 (`exclusion-invalid`, `exclusion-promoted`)
 - Q4 (the command) -> SP-T6
+- [v1.2] SP-T8 serves iris#61, an item filed after the freeze, not a Q* of iris#48. It adds no drift kind.
 - No task without a Q*: `duplicate-identity` serves BR06 (identity-mediated joining), which the universe
   union depends on; it is not scope creep but a precondition of Q3.
 
@@ -407,6 +477,29 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
 - **Reading descriptors of forge-only repos remotely** (without a local checkout) — such repos surface as
   `uncloned`, which is the actionable signal (clone it or exclude it). Value-rejected: a remote content read per repo adds
   forge API coupling for no decision it changes.
+
+- [v1.2] **Reading only the registry's `tags =` lines, or only the descriptor's system.** Each alone was
+  built first and discarded on 2026-11-13 (the registry-only build before any commit; the descriptor-only
+  one is this branch's first commit). The registry alone answers from a manifest that is not where a
+  member's system is declared. The descriptor alone leaves every word no descriptor states — a second
+  dimension beside the cluster, and the entries without a descriptor — returning an empty list. The join
+  (iris#61's option 1 as written: "ler … e juntar") is what SP-T8 builds.
+- [v1.2] **`[DEFAULT]` inheritance and continuation lines of the registry format.** Not read: iris reads a
+  section's own `tags =` line. Value-rejected: no registry in view sets tags in `[DEFAULT]`; resolving the
+  registry format's inheritance inside a public adapter would re-implement the registry tool's parser
+  (BR01). Invalidator under Assumptions.
+- [v1.2] **Declaring the cluster again under `metadata.tags` in every descriptor** (iris#61's option 2).
+  Value-rejected: `spec.system` already states it; a second field for the same fact invites divergence.
+- [v1.2] **An explicit "unknown" in place of an empty tag-filter result** (iris#61's option 3). Not built
+  here. After SP-T8 an empty result for a word means no descriptor and no registry section that was read
+  declares it; a mistyped word still returns an empty list. What stays open is the reported surface: the
+  MCP `repos` tool returns the node list alone, so a source note (a registry that could not be read,
+  `incomplete-coverage`) has no channel there, while the CLI prints it. That is a return-shape change of a
+  published tool, tracked as iris#75.
+  Trigger-source: #75 · this tracker — fires when (outside) iris#75 is built
+- [v1.2] **A drift kind for a registry section whose tag words disagree with its descriptor's system.**
+  Not added: this amendment changes a read, not the check, and both values simply appear among the tags.
+  Value-rejected: no rule is recorded for which registry word, if any, names the system.
 
 ## Risks / unknowns
 - **glab JSON listing shape** — the field names (`path`, `archived`) and the JSON flag of `glab repo list`
@@ -430,6 +523,13 @@ rules in the glossary (SP-T7), without a carrier. Existing BR02/BR04/BR07 apply 
 - The upstream convention that membership = having a descriptor holds for every owned repo — invalidated
   if the first real run reports `undeclared-member` items that are members by intent. Those are then
   backfill work, which is the check doing its job.
+
+- [v1.2] A descriptor's `spec.system` names what a consumer means by "cluster" — the field mapping is
+  observed in every descriptor read on 2026-11-13, not ruled upstream. Invalidated if a descriptor's system and the cluster its
+  owner intends diverge; the registry word then still answers the filter, and the divergence is visible as
+  two tags.
+- [v1.2] No registry sets `tags` under `[DEFAULT]` or on a continuation line — invalidated the first time
+  one does: those repos would then lack a word their registry's owner meant them to carry, with no signal.
 
 ## Open questions
 - Should `exclusion-invalid` also fire on a reason outside a fixed vocabulary (e.g. `study` / `third-party`)?
