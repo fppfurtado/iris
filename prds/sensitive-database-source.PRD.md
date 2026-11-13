@@ -1,60 +1,119 @@
 # PRD: Sensitive database sources — an access contract on the data path, with object-keyed knowledge
 
-- Frozen at: 2026-11-12 (v1; v2 the same day)
-- PRD version: v2
-- Status: frozen after approval on 2026-11-12 (operator "Sim" to "Congelo `prds/sensitive-database-source.PRD.md` como v1, com o segundo repositório no escopo?"); v2 frozen after approval on 2026-11-12 (operator "Sim" to "Posso congelar `prds/sensitive-database-source.PRD.md` como v2?")
-- Independent read: ran — throughline:blind-critic, lenses J1/J3/J5/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 4 findings, all acted on (carrier table, J5 evidence, M4, R5, Open questions); conformance passed. The F3 replay design was read under J3 before it ran (5 findings, all acted on). v2 — ran — throughline:blind-critic, lenses J1/J3/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 5 findings, all acted on in this draft: the part-(b) rule over-applied to a note that predates its failure → bound to "a case the note was not written from", checked per row (J1); "run" narrowed "answered" → "answered; INCONCLUSIVE does not answer" (J1); the invalidator over-claimed → scoped per test class, J5 falls only if both fail (J1); the precondition's rules contradicted test 2 → per-test rules, plus the missing "read under J3 before it runs" (J3); the amendment rationale contradicted test 1 → limited to the first replay's design. Conformance and C3 passed
-- Source: Brief `briefs/sensitive-database-source.BRIEF.md` v2 (frozen 2026-11-12; v1 the same day). Vision skipped: a
+- Frozen at: 2026-11-12 (v1; v2 the same day); v3 2026-11-13
+- PRD version: v3
+- Status: frozen after approval on 2026-11-12 (operator "Sim" to "Congelo `prds/sensitive-database-source.PRD.md` como v1, com o segundo repositório no escopo?"); v2 frozen after approval on 2026-11-12 (operator "Sim" to "Posso congelar `prds/sensitive-database-source.PRD.md` como v2?"); v3 frozen after approval on 2026-11-13 (operator "Congelar v3 (Recomendado)" to "Posso congelar prds/sensitive-database-source.PRD.md como v3 …?", which stated that the product commitment now holds on the SUPPORTED branch only — re-confirmed)
+- Independent read: ran — throughline:blind-critic, lenses J1/J3/J5/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 4 findings, all acted on (carrier table, J5 evidence, M4, R5, Open questions); conformance passed. The F3 replay design was read under J3 before it ran (5 findings, all acted on). v2 — ran — throughline:blind-critic, lenses J1/J3/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 5 findings, all acted on in this draft: the part-(b) rule over-applied to a note that predates its failure → bound to "a case the note was not written from", checked per row (J1); "run" narrowed "answered" → "answered; INCONCLUSIVE does not answer" (J1); the invalidator over-claimed → scoped per test class, J5 falls only if both fail (J1); the precondition's rules contradicted test 2 → per-test rules, plus the missing "read under J3 before it runs" (J3); the amendment rationale contradicted test 1 → limited to the first replay's design. Conformance and C3 passed. v3 — ran — throughline:blind-critic, 2026-11-13, the same sequence of reads as Brief v3 (J1/J3/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07, then narrow reads per fix round); findings acted on include: the invalidator read a point estimate as a fact; a single-replay escape clause; an attempt definition and α correction; floors incl. NOT SUPPORTED at the minimum effect; PR7 class-scoping; the withdrawn PR12/keep-a-path and earn-or-retire structures; branch-scoped PR1/PR8/PR9; PR8a/PR8b; PR13 custody; PR2 on the second branch. Conformance and C3 passed
+- Source: Brief `briefs/sensitive-database-source.BRIEF.md` v3 (frozen 2026-11-13; v1 and v2 frozen 2026-11-12). Vision skipped: a
   capability inside an existing product (iris; its direction is the `agent-context-layer` PRD and the parent
   Brief `costura-iris-fonte`), path Brief → PRD → Spec chosen by the operator 2026-11-12. Evidence for the
   carrier candidates: the S4 comment on iris#34 and the probes run for this PRD's blind read (2026-11-12).
 - Product commitment confirmed: yes — 2026-11-12 (operator: the solution is software, a composite of an iris
-  source adapter and a carrier outside iris for C4 and J7)
+  source adapter and a carrier outside iris for C4 and J7). v3: holds on the SUPPORTED branch only; on any
+  other verdict the first build is the outside-iris carrier alone (Scope, Branches); re-confirmation owed at
+  the v3 freeze (re-confirmed 2026-11-13)
 - Amendments: v1→v2 (2026-11-12, approved — operator "Sim"): follows Brief v1→v2. What changed: the J5-evidence
   paragraph, the M1 J5 rows' part (b), the F3 assumption, the deliberate-exclusions note and the Spec
   precondition are re-pointed from "a load-realistic replay of F3's case" to the Brief v2 "Settled when"
   pair of tests, and PR7(b) is bound to a case the note was not written from. Why: the Brief's F3 was
   restated from the 11-12 transcript. The general lesson was in context and was overridden twice. So the
   first replay's design could not test keying, because both its arms already held the lesson, and a note
-  written from a failure carries its answer (Brief v2 S1(b))
+  written from a failure carries its answer (Brief v2 S1(b)).
+  v2→v3 (2026-11-13, draft): follows Brief v2→v3. What changed: the J5-evidence paragraph records test 1's
+  first run; the Spec precondition restates both J5 tests as rate comparisons over repeated fresh runs, with
+  a pre-fixed sample size, a reproduction gate at which SUPPORTED is reachable, a NOT SUPPORTED bar the data
+  can reach under no effect, stated verdict probabilities, and no pooling of earlier runs; the "≥ 2 of 3"
+  gates of both tests are removed; "answered" is defined as SUPPORTED or NOT SUPPORTED; the invalidator and
+  the deliberate-exclusions note are re-worded to match; the RP-J5 judgment question notes that one replay is
+  one draw; PR7(b) and the M1 note follow Brief v3 `:S1`(b) (a rate over repeated replays); verdict floors and
+  a correction for repeated attempts are added. Why: on a replay of F3's original request the recorded
+  failure reproduced in 1 of 3 runs (Brief v3 `:F12`), and a majority gate over a few runs passes rarely
+  unless the failure rate is high; test 2's identical gate is unreliable on a held-out case whose failure
+  rate is unknown (a design argument; no test-2 data exists). Then (same day, before any freeze), following
+  Brief v3's split of "Settled when": J5 moves to a separable second increment with a trigger; the J1–J4
+  carrier decision rests on S4/M4 merits only; the precondition binds building J5, not the J1–J4 carrier;
+  one SUPPORTED suffices to build J5 for its class; NOT SUPPORTED is read as an observed size, never as no
+  effect; the floors add NOT SUPPORTED at the minimum effect and a realistic noise model; an attempt is
+  defined; PR7(b)/M1 point to a decision rule fixed before the runs. Why: the J5 tests need a per-call
+  budget the operator does not have (Brief v3 `:F13`); and the blind reads of the rate designs found the
+  rest. Then, following Brief v3's last change (budget for test 1 obtained): the first build branches on
+  test 1's verdict (SUPPORTED → iris carries J5 and J6; otherwise the first build is entirely outside iris);
+  iris has no surface for this source without J5 (BR05, no transport-only exception); the earlier
+  earn-or-retire reading of C6/R1 and the keep-a-path rule (PR12) are withdrawn — a blind read found that
+  C6/R1's scaffolding disposition is layer-level and gated elsewhere, and that keep-a-path re-introduced J5
+  as a J1–J4 ground; A1's J1 elimination, M4 and the Q2 answer are re-bound to the SUPPORTED branch; the J5
+  trigger now names test 2's held-out case. This supersedes the middle step above (J5 always a second
+  increment; the J1–J4 carrier never waiting on J5). Then, after a further read: branch-scoped requirements
+  (PR1, PR9 to the chosen carrier; PR8 split into PR8a reach, both branches, and PR8b CLI/MCP, SUPPORTED only; credential custody split out as PR13 on both branches), J6 split
+  into its transport part (waits with J5 on the other branch) and its reach/custody parts (do not), the
+  three-run attempt excluded from setting the branch, the product-commitment line marked SUPPORTED-only.
+  Freeze: approved 2026-11-13 after Brief v3's freeze, structure and product commitment re-confirmed
+  (Status). Test-1 design acceptances recorded with the operator the same day: NOT SUPPORTED at the
+  minimum effect ≈ 0.40–0.48, and a combined false-SUPPORTED bound ≈ 0.12 at α = 0.025 for attempt 2
 
 ## Context & users
 For the operator's agents (any session, any repository) answering operational demands by querying an
 organization's confidential PostgreSQL databases — today the institutional case-management system of the
 Brief's case study. Today safety, confidentiality and correctness rest on rules the agent must remember, and
 the recorded failures recur (`sensitive-database-source:F2`, `:F10`). This effort puts an access contract on
-the data path and joins the recorded knowledge about the objects a query touches to its result. Users: the
+the data path and, where J5's value is supported, joins the recorded knowledge about the objects a query
+touches to its result. Users: the
 agent as direct consumer, the operator as mediated consumer and as the person who answers for the custody
 owner's rules. Not for: analysts running BI workloads (`:N3`), the organization's DBA, or anyone needing
 writes through iris (`:C1`).
 
 ## Scope of THIS effort
-- In this cut: serves `sensitive-database-source:J1`, `:J2`, `:J3`, `:J4`, `:J5`, `:J6`, `:J7`, and honors
-  `:C1`–`:C4`. Which carrier serves each job is the Spec's decision, made among the candidates below.
-  The PRD fixes only what follows from the constraints:
-  - **iris** carries J5 and J6. Cross-source composition and the uniform surfaces are iris's by the domain
-    seam rule BR01.
+- In this cut: on the SUPPORTED branch, `sensitive-database-source:J1`–`:J7` (J5 for the general-lesson
+  class); on any other branch, J1–J4, J7 and J6's reach and custody parts. Both honor `:C1`–`:C4`. Which
+  carrier serves each job is the Spec's decision, made among the candidates below. The PRD fixes only what
+  follows from the constraints:
+  - **If iris is in the first build (SUPPORTED)**, iris carries J5 and J6. Cross-source composition and the
+    uniform surfaces are iris's by the domain seam rule BR01.
   - **J7 and the C4 bypass closure sit outside iris.** C1 forbids iris from carrying J7 (`:N1`). C4 puts the
     direct client outside any layer. Their home is named by the Spec, per the env-stack routing in the
     dotfiles repo.
   - **J1–J4 can sit in iris (an embedded guard) or in a local proxy on the data path,** which iris then
-    queries through for J5. The Spec weighs both.
-- Deferred: none of the Brief's jobs. Release non-goals below bound engines and harnesses.
-- Why J5 is in this cut and not deferred: under the domain rule BR05 (`docs/domain.md`), a surface that only
+    queries through for J5 when J5 is built. Which shape applies follows test 1's verdict (below).
+- **Branches on J5 test 1.** The first build's shape waits on test 1's verdict (Brief v3 "Settled when",
+  first bullet):
+  - **SUPPORTED** → J5 for the general-lesson class is in the first build, and iris carries J5 and J6
+    (BR01; BR05 earned by the composition). J1–J4 sit in G or P, chosen on S4/M4 merits.
+  - **Any other verdict**, or a test-1 design or attempt that ends without one (unless a further test-1
+    budget is recorded before the first build starts) → the first build (J1–J4, J7, C4) is entirely outside iris, among P, A1 and A3 on
+    S4/M4 merits, and the agent reaches the databases through that carrier. PR2 (the guarantee field) is
+    then carried by a P that reports it, or by the guarantee reporter A1 must be paired with (A1 has no
+    per-connection class); which one is the Spec's choice. iris has no surface for this
+    source until J5's value settles for a class (#73): a surface that only re-exposes one source does not
+    earn its cost (BR05), and no transport-only exception is made.
+- Deferred on the second branch: J5 and J6's transport part (iris's surfaces) for this source; J6's reach
+  from any session and credential custody stay in the first build, on the chosen carrier (PR8a, PR13) (value affirmed by the Brief as jobs; evidence
+  pending; an in-use signal only flags the item, it never answers the tests). On the first branch, J5 for
+  the object-specific class waits on test 2 the same way. Release non-goals below bound engines and harnesses.
+Trigger-source: #73 · this tracker or the case-study harness memory — fires when (outside) a held-out case for J5 test 2 is recorded and the operator records a per-call budget for it, or a budget for a further test-1 attempt is recorded, or a J5-class failure of the Brief F2 kind is recorded again after the v3 freeze
+- Why J5 decides iris's place: under the domain rule BR05 (`docs/domain.md`), a surface that only
   re-exposes one source's read earns its cost only through composition across sources. J5 (the query ⋈ the
-  knowledge source, keyed by object identity) is that composition. Without J5 the iris carrier would rest on
-  the parent Brief's transport-only value alone, which `:F6` and BR05 leave in tension (see Assumptions).
+  knowledge source, keyed by object identity) is that composition, so iris enters this effort with J5 or
+  not at all.
 - **J5's value is not yet evidenced.** A first F3 replay (2026-11-12) ran INCONCLUSIVE: all six answers, the
   unkeyed arm included, avoided the failure. A later read of the 11-12 transcript found that the replay could
   not have tested keying. The general lesson about the audit store was already in the agent's context there,
-  read in-session, and the agent set it aside twice (Brief v2 F3). So F3 no longer supports J5's value.
-  Brief v2's "Settled when" names what can settle it: two tests, each with a same-content unkeyed arm.
+  read in-session, and the agent set it aside twice (Brief v3 `:F3`). So F3 no longer supports J5's value.
+  Brief v3's "Settled when" names what can settle it: two tests, each comparing the rate of the wrong first
+  conclusion between a keyed arm and a same-content unkeyed arm.
   - A general lesson keyed to the touched object vs the same lesson in context, on F3's own case.
   - Object-specific knowledge keyed vs unkeyed, on a held-out case of the same class.
-  Design, answers and grades are in private dossiers.
-  Consequence: no carrier decision may rest on J5's value until those tests have answered (an INCONCLUSIVE
-  run does not answer). J5 stays in scope (a Brief
-  job), and the tests are a precondition of the Spec's carrier decision (Open questions for Spec).
+  Test 1 ran on 2026-11-13 on a replay of F3's original request, context reproduced, one
+  reasoning-visibility setting changed (Brief v3 `:F12`): the unkeyed arm repeated the failure in 1 of 3 runs, the keyed arm in 0
+  of 3. Under PRD v2's rule (the unkeyed arm must fail in ≥ 2 of 3 first) that is INCONCLUSIVE. The failure
+  reproduced in 1 of 3 runs (its rate undetermined), and a majority gate over a few runs passes rarely unless
+  the failure rate is high, so v3 restates both tests as rate comparisons (Open questions for Spec).
+  Design, answers and grades are in private dossiers. Test 1 can run on the budget the operator obtained;
+  test 2 cannot yet, since it needs a held-out case (`:F13`). A planning simulation put a design that can
+  return either answer at about 80 runs per arm (under an assumed failure rate and noise model). The
+  2026-11-13 three-run attempt does not set the branch; test 1's rate design does.
+  Consequence: test 1's verdict sets only whether iris is in the first build (Branches, above); among the
+  J1–J4 alternatives the choice rests on S4/M4 merits; J5 is built for a class only once that class's test
+  returns SUPPORTED (Open questions for Spec).
 
 ## Carrier candidates per job (the Spec decides; evidence as of 2026-11-12)
 Each eliminated candidate is stated with its disqualifier, whether that disqualifier is intrinsic or swappable,
@@ -70,13 +129,14 @@ Candidates:
 
 | Job | Kept for the Spec | Eliminated — disqualifier — intrinsic? — how established |
 |---|---|---|
-| J1 refuse writes | G; P | A3 by injecting client settings (read-only transaction, timeout): undone by an in-SQL `SET` — intrinsic to a client-requested setting — probe on a local PostgreSQL 16, 2026-11-12. A1 as a server: does not compose with J5 (below). A2: infeasible (operator, 2026-11-12) |
-| J1 report the guarantee / refuse a weaker one | G; P (if it reports) | A1: no per-connection class concept — code read at `15c8e33` |
-| J2 keep sensitive objects out of results | G; P; A3 post-tool replacement | A1: no mask/deny/redact policy — code read with positive control. A2: infeasible. A3 is NOT eliminated: a post-tool hook replaced a Bash output before the model saw it, and the original never reached the local transcript (probe, headless session, 2026-11-12); harness telemetry is off on this machine. A3's costs for the Spec: on formatted text a value's source column is lost under an alias or an expression, so it would re-run the same query analysis; it covers one harness only (J6); where harness telemetry is enabled, that telemetry captures the original output before the hook (hooks reference, read verbatim). S4's reading "A3 cannot filter results" is withdrawn |
-| J3 load bound | G; P | A3 by client settings: undone by `SET statement_timeout` — intrinsic — same probe |
-| J4 preconditions | G; P; A3 by client settings (encoding and search path are correctness defaults, not a guarantee against the agent) | — |
+| J1 refuse writes | G (SUPPORTED branch); P; A1 (other branch) | A3 by injecting client settings (read-only transaction, timeout): undone by an in-SQL `SET` — intrinsic to a client-requested setting — probe on a local PostgreSQL 16, 2026-11-12. A1 as a server, on the SUPPORTED branch: does not compose with J5 unless iris drives it as a client (the swap that keeps P); G reuses its guard approach, so the Spec weighs "iris through A1" against G there (Brief v3 `:S4`); on the other branch A1 is kept. A2: infeasible (operator, 2026-11-12) |
+| J1 report the guarantee / refuse a weaker one | G (SUPPORTED branch); P (if it reports) | A1: no per-connection class concept — code read at `15c8e33` |
+| J2 keep sensitive objects out of results | G (SUPPORTED branch); P; A3 post-tool replacement | A1: no mask/deny/redact policy — code read with positive control. A2: infeasible. A3 is NOT eliminated: a post-tool hook replaced a Bash output before the model saw it, and the original never reached the local transcript (probe, headless session, 2026-11-12); harness telemetry is off on this machine. A3's costs for the Spec: on formatted text a value's source column is lost under an alias or an expression, so it would re-run the same query analysis; it covers one harness only (J6); where harness telemetry is enabled, that telemetry captures the original output before the hook (hooks reference, read verbatim). S4's reading "A3 cannot filter results" is withdrawn |
+| J3 load bound | G (SUPPORTED branch); P; A1 (other branch) | A3 by client settings: undone by `SET statement_timeout` — intrinsic — same probe |
+| J4 preconditions | G (SUPPORTED branch); P; A3 by client settings (encoding and search path are correctness defaults, not a guarantee against the agent) | — |
 | J5 object-keyed knowledge | iris (BR01) | A1 as a separate server: a layer cannot see its queries — intrinsic to a separate server, dissolved by embedding (G) — architecture read. P: a proxy cannot attach notes to the agent's result — intrinsic — but iris querying through P keeps J5 in iris. A3 could add notes as context, but the composition is iris's by BR01 |
-| J6 uniform surfaces | iris | A3: one harness only |
+| J6 transport part (uniform CLI/MCP surfaces) | iris (SUPPORTED branch); deferred otherwise | A3: one harness only |
+| J6 reach part (any session, any working directory) | the chosen read carrier: P, or A1 only paired with a guarantee reporter (PR2); iris on SUPPORTED | — (A3 as a router to that carrier is kept) |
 | J7 rollback-only writes | outside iris: a runner that parses and wraps the statements, reached by A3 routing | iris: forbidden by C1 — intrinsic to the iris carrier, not the job. A1: two modes only — code read. A3 by wrapping text (`BEGIN … ROLLBACK` around a script): a `COMMIT` inside the script commits everything before it, and what follows runs in autocommit — intrinsic to wrapping without parsing — probe on a local PostgreSQL 16, 2026-11-12 (both rows of a two-insert script with a `COMMIT` between them survived the `ROLLBACK`) |
 | C4 close the direct client | A3 routing or refusal; credential custody (the credential reachable only by the chosen carrier); P plus credential custody (covers every client, `psql` included) | iris: cannot close a client it does not run — intrinsic |
 
@@ -88,9 +148,9 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   `client-requested` (only a read-only transaction requested by the client). A connection whose role can
   write and whose job includes writes is declared `writable` and is served only by the J7 carrier, never by
   iris. — acceptance: (a) a declared connection is queryable through iris; (b) the adapter code, tests,
-  fixtures and docs name no instance (PR11); (c) WHEN a declared connection's credential would be read from
-  a path inside a git working tree, the system SHALL refuse the connection and name the path class (not the
-  path) in the error. — serves `sensitive-database-source:J6`, `:C2`, `:C3` — priority: must
+  fixtures and docs name no instance (PR11). — serves `sensitive-database-source:J6`, `:C2`, `:C3` —
+  priority: must (SUPPORTED branch; on the other branch the declaration lives in the chosen carrier's
+  private configuration: (a) queryable through the chosen carrier, (b) unchanged)
 - PR2: Every query result states the write guarantee that actually held on its connection, established by the
   system against the server, never taken from the declaration alone. — acceptance: (a) every result carries
   a guarantee field whose value is one of the declared classes and was established for that connection;
@@ -125,20 +185,29 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
 - PR7: When a query touches database objects, its result carries the recorded knowledge about those objects
   and their instance (what a column means, where a table's audit trail lives, which writes bypass the audit),
   joined to the query by the object's identity — never by text similarity. — acceptance: the J5 replay of
-  `:S1` passes for each of the three `:F2` J5 cases: (a) a note keyed to the touched object is returned
+  `:S1` passes for each `:F2` J5 case of a class whose test returned SUPPORTED: (a) a note keyed to the touched object is returned
   (positive control: a query on that object returns it; a query on an unrelated object does not); and (b)
-  with the note in hand, the replayed first conclusion changes on a held-out case of the same class, not on
-  a case the note was written from (M1). Surfacing a note alone does not pass. —
+  with the note in hand, the rate of the wrong first conclusion falls, over repeated replays compared with
+  the same case replayed without the note, on a case the note was not written from (M1), judged by a
+  decision rule fixed before the runs under the precondition's rules (Brief v3 `:S1`(b)). Surfacing a note
+  alone does not pass. In the first build for the general-lesson class on SUPPORTED; otherwise with #73.
+  Part (b) needs the same per-call budget as the J5
+  tests (`:F13`). —
   serves `:J5` — satisfies `:S1` — priority: must
-- PR8: The capability is served on iris's CLI and MCP surfaces with the same results, reachable from any
-  session and any working directory. — acceptance: one query run through the CLI and through the MCP tool,
-  each from a working directory outside the iris repository, returns the same rows, guarantee field and
-  notes. — serves `:J6` — priority: must
+- PR8a: Every declared connection is queryable through the chosen read carrier from any session and any
+  working directory, on both branches. — acceptance: one query, run from a working directory outside every
+  repository in a fresh session, returns its rows and guarantee field. — serves `:J6` (reach part) —
+  priority: must
+- PR8b: The capability is served on iris's CLI and MCP surfaces with the same results. — acceptance: one
+  query run through the CLI and through the MCP tool, each from a working directory outside the iris
+  repository, returns the same rows, guarantee field and notes. — serves `:J6` (transport part) — priority:
+  must (SUPPORTED branch only)
 - PR9: For every declared connection, the direct-client bypass is closed in the harness the operator's
   sessions query these databases from (today: Claude Code), so the PR2–PR6 guarantees hold on the data path.
   — acceptance: in a session of that harness, an attempt to reach a declared connection with a direct client
-  (the incumbent command-line client, or a script using a client library) is refused with a pointer to
-  iris (read-only classes) or to the J7 carrier (`writable` class); connections that are not declared are
+  (the incumbent command-line client, or a script using a client library) is refused, or routed, with a
+  pointer to the chosen read carrier — iris on the SUPPORTED branch — (read-only classes) or to the J7
+  carrier (`writable` class); connections that are not declared are
   unaffected. The carrier lives outside iris; the Spec names it and its home. — serves `:C4` — priority:
   must
 - PR10: On a `writable` connection, statements run only inside a transaction that is rolled back, unless the
@@ -152,6 +221,11 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   public repository (code, tests, fixtures, docs, commit messages of this effort) for the case-study
   identifiers kept in a private list returns zero hits; tests run against a synthetic database. — serves
   `:C3` — satisfies `:S3` — priority: must
+- PR13: Every declared connection's credential is held outside every repository's working tree and is
+  reachable only by the chosen carriers, on both branches. — acceptance: WHEN a declared connection's
+  credential would be read from a path inside a git working tree, the system SHALL refuse the connection and
+  name the path class (not the path) in the error; the case-study credential recorded inside a working tree
+  (`:F11`) is moved before first use. — serves `:J6` (custody part), `:C3` — priority: must
 
 ## Non-goals (this release)
 - NR1: Database engines other than PostgreSQL. The case study and every recorded failure are PostgreSQL;
@@ -182,12 +256,16 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
   | RP-J7 | standing risk (homologation writes guarded only by rollback) | script output returned, nothing committed |
 
   Positive control for every J5 case: the same query shape on an unrelated object surfaces no note.
-  Part (b) of every RP-J5 row ("the replayed conclusion …") is judged on a case the note was NOT written
-  from (Brief v2 S1(b)). A note written after its failure, from that failure's answer, is judged on a
+  Part (b) of every RP-J5 row ("the replayed conclusion …") is judged as a rate over repeated replays, with
+  and without the note (one replay is one draw, Brief v3 `:S1`(b), `:F12`), on a case the note was NOT
+  written from, by a decision rule fixed before the runs (the precondition's rules, or one the Spec
+  states). A note written after its failure, from that failure's answer, is judged on a
   held-out case of the same class: replaying its own failure with it would carry the answer. A note that
   predates the failure (in RP-J5c, the audit-store note, last modified before 11-12) may be judged on the
   row's own case. Which notes predate their failure is checked per row (by the note's dates) when the
   private instantiation is written. The row's own case always tests part (a): the note surfaces, keyed.
+  The private instantiation also states each RP-J5 note's knowledge class (general lesson or
+  object-specific; a row may carry one note of each), so PR7 applies per class.
 - M2 (from `:S2`): 100% of write attempts in the replay fail on every declared connection, each result
   stating which guarantee held; a connection mis-declared `server-enforced` is refused.
 - M3 (from `:S3`): zero hits for the private identifier list over the public repository at the effort's
@@ -195,7 +273,7 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
 - M4 (from `:S4`): the comparison covers every candidate in the carrier table for each of J1–J4 and J7,
   with its feasibility and verdict recorded. S4 (iris#34, 2026-11-12) recorded A1 and A2. This PRD extends
   it to A3 and P, and the Spec completes it. The layer builds a job only where it beats every feasible
-  candidate, or where no candidate composes with J5.
+  candidate, or, on the branch where J5 is built, where no candidate composes with J5.
 - M5 (from `:S5`): before the first use on real data, the operator, acting under the custody owner's rules,
   accepts the read-surface policy declared for the case-study instance (a recorded yes on the declared list).
 
@@ -237,46 +315,78 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
 - The sessions that query these databases run in Claude Code. — invalidated if a session list shows a
   case-study query from another harness; PR9 then needs that harness too.
 - Notes keyed by object identity change the first conclusion. This is not supported by F3 as restated (Brief
-  v2 `:F3`): the general lesson was in context, unkeyed, and was overridden twice. Each Brief v2 J5 test
-  scopes to its own class of knowledge. If test 1 returns "the keyed arm is still overridden" (no better
-  than the same lesson in context), keying general lessons earns nothing. If test 2 returns it (no better
-  than the same object-specific knowledge unkeyed), keying object-specific knowledge earns nothing. If both
-  return it, J5's value falls, and with it BR05's earn for the iris carrier. iris's role then reduces to J6
-  transport, and the carrier choice reopens. If only one returns it, J5 stays in scope for the other class.
-- The iris carrier earns under BR05 only through J5. — invalidated (in the other direction) if the domain
-  model adopts the parent Brief's C6 transport-only value for sensitive sources; then J5 could be cut
-  without re-justifying the carrier. Neither is decided here.
+  v3 `:F3`): the general lesson was in context, unkeyed, and was overridden twice. Each Brief v3 J5 test
+  scopes to its own class of knowledge. If test 1 returns NOT SUPPORTED (no reduction of at least the
+  design's stated minimum was observed against the same lesson in context), this PRD treats keying general
+  lessons as not carrying J5 for the class — a reading of the observed size, not proof of no effect. If test
+  2 returns it (against the same object-specific knowledge unkeyed), the same holds for object-specific
+  knowledge. If both return it, J5 is not built and iris has no surface for this source; the first build
+  stays outside iris. One SUPPORTED suffices to build J5 for its class; the other test is then needed only
+  to scope J5 to both classes. Each test licenses only its own class, so each runs at its own
+  significance level (per-class licensing); a single build decision taken on "either test" would inflate
+  the false-SUPPORTED rate to about twice that level, and is not made.
+- iris has a surface for this source only together with J5 (BR05; Scope). — invalidated (in the other
+  direction) if the domain model adopts the parent Brief's C6 transport value as a standing earn for
+  sensitive sources; then iris could carry J6 without J5.
 
 ## Deliberate exclusions (from the Brief)
 - None narrowed. The Brief's "Settled when" has two halves. S4 ran, and this PRD extends it. The J5 half (two
-  tests, Brief v2) has not run; a first F3 replay ran INCONCLUSIVE and is superseded. So the vehicle for J1–J4
-  stays open into the Spec. That is not a narrowing: this PRD
-  commits requirements, not carriers.
-- Brief open questions: Q2 (does the parent's transport value hold against an existing server) is answered
-  in part. A1 as a server does not compose with J5 and fails J2/J7. P (a proxy) was not in S4, and the Spec
-  weighs it;
+  tests, Brief v3) has not answered: test 1 ran once under PRD v2's rule and came out INCONCLUSIVE (Brief v3 `:F12`), and
+  test 2 has not run; a first F3 replay ran INCONCLUSIVE and is superseded. What waits on #73 (the
+  object-specific class, and on any non-SUPPORTED verdict both classes plus J6's transport part) follows the
+  Brief's own branch rule in "Settled when", not a narrowing. The vehicle for J1–J4
+  stays open into the Spec: this PRD commits requirements, not carriers.
+- Brief open questions: Q2 (does the parent's transport value hold against an existing server) is decided
+  in Brief v3 (BR05: no iris surface for this source without J5, against the parent's C6). A1 as a server
+  fails J2/J7; P (a proxy) was not in S4, and the Spec weighs it;
   Q4 (is the database-native alternative obtainable) — answered: no (operator, 2026-11-12). Q1 (what may be
   read) carries as M5 and R5; Q3 (J5 home) and Q5 (result model) carry to the Spec below.
 
 ## Open questions for Spec
-- **Precondition of the carrier decision:** the two J5 tests that Brief v2's "Settled when" names have
-  answered (an INCONCLUSIVE run does not answer) before the Spec commits the carrier for J1–J4. Each design is
-  read under J3 before it runs. Rules for both tests, from the J3 read of a superseded replay design
-  (2026-11-12, 6 defects):
+- **The J1–J4 carrier decision** waits on J5 test 1's verdict, which sets only whether iris (and so G) is in
+  the first build (Scope, Branches); among the alternatives it rests on S4/M4 merits (the carrier table, M4,
+  R1–R5).
+- **Precondition of building J5 for a class:** that class's test returned SUPPORTED. J5's value is settled as
+  Brief v3's "Settled when" states — one J5 test returns SUPPORTED, or both return NOT SUPPORTED. A test answers only with SUPPORTED
+  (keying reduces the failure rate, by a test fixed before the runs) or NOT SUPPORTED (no reduction of at
+  least the design's stated minimum effect was observed); any other verdict (a gate not passed, a reduction
+  neither significant nor below that minimum, a robustness check that flips the verdict) does not answer. An
+  in-use signal can prompt the tests; it never answers them. Each design is read under J3 before it runs.
+  Rules for both tests, from the J3 read of a superseded replay design (2026-11-12, 6 defects), from test 1's
+  first run (2026-11-13, Brief v3 `:F12`) and from the blind reads of its rate designs (2026-11-13):
   - Each test has a same-content unkeyed arm, so content and keying do not vary together.
   - The labels cover a message that leans one way and also proposes a check.
   - The verdict bars are mutually exclusive.
   - Blinding removes every arm cue, including details only the note carries.
+  - The measure is the rate of the wrong first conclusion per arm, over repeated fresh runs, compared by a
+    test fixed before any run. A gate that requires the unkeyed arm to fail in most runs is not used: the
+    recorded failure can be the minority outcome at its own decision point (Brief v3 `:F12`).
+  - Before any run, the design fixes the sample size, a reproduction gate (the unkeyed arm's minimum failure
+    count) at which SUPPORTED is reachable at all, and the SUPPORTED and NOT SUPPORTED bars, and states each
+    verdict's probability under no effect and under a stated target effect, at the planned base rate. Two
+    floors are stated and met: SUPPORTED's probability under the target effect, and NOT SUPPORTED's under no
+    effect — so the design can return the disconfirming verdict, not only the confirming one. NOT
+    SUPPORTED's probability at the minimum effect itself is also stated, and accepted by the operator.
+  - The probabilities come from a noise model in which graders' errors can be correlated, the part of an
+    answer a label is read from can bias it, and undecidable answers can differ in rate between arms — not
+    only from independent errors.
+  - Runs measured before the bars were fixed are reported apart and never pooled into the verdict.
+  - Every design attempted for a test is reported with its verdict. An attempt is any measured run of the
+    test whose bars, fixed before it, could have returned an answering verdict (test 1's first run counts). A
+    redesign after a verdict that does not answer divides the significance level across that test's
+    attempts (or states another correction for repeated attempts), and declares its attempt number. A
+    calibration stop before any measured call is not an attempt; if its one declared re-grade does not clear
+    it, that design ends without a verdict (Brief v3 "Settled when").
   Test 1 (a general lesson keyed vs the same lesson in context, on F3's own case):
   - The context matches the original session's at that point, including what it had already READ, not only
     what its index listed.
   - The cut and the instruction do not force a conclusion where the original session kept working.
-  - The unkeyed arm reproduces the recorded failure first (≥2 of 3), else the result is INCONCLUSIVE.
+  - Below the reproduction gate the result is INCONCLUSIVE: the failure is too rare to discriminate at that
+    sample size.
   Test 2 (object-specific knowledge keyed vs unkeyed, on a held-out case of the same class):
   - The case is one the knowledge was not written from.
-  - The unkeyed arm reaches the wrong first conclusion in ≥2 of 3 runs, else the case is too easy to
-    discriminate, and the result is INCONCLUSIVE.
-  Until both tests have answered, no carrier choice may rest on J5's value.
+  - Below the reproduction gate the case is too easy to discriminate, and the result is INCONCLUSIVE.
+  J5 is not built for a class until that class's test returns SUPPORTED.
 - The carrier for J1–J4: a guard embedded in iris (G), or a local proxy on the data path (P) that iris
   queries through; with credential custody for C4 in either case.
 - J5's knowledge home and object identity: the knowledge store, a per-instance card in private
@@ -287,6 +397,7 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
 - PR3/PR5: vendor A1's guard as a library or write one on the same approach; how the bound is configured.
 - PR9's carrier: a harness hook (refusing or routing via `updatedInput`), credential custody, a proxy with credential custody, or a mix; and its home.
 - PR10's carrier and home, and the per-invocation authorization mechanism.
-- How the RP-J5 "conclusion changes" is judged (for example a blind replay graded against the expected
-  result).
+- How the RP-J5 rows' "the rate of the wrong first conclusion falls" is judged: repeated
+  replays with and without the note, graded blind, under a decision rule fixed before the runs (Brief v3
+  `:S1`(b), `:F12`).
 - One Spec, or one per carrier (iris; outside iris).
