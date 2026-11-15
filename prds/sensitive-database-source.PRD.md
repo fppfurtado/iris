@@ -1,8 +1,8 @@
 # PRD: Sensitive database sources — an access contract on the data path, with object-keyed knowledge
 
-- Frozen at: 2026-11-12 (v1; v2 the same day); v3 2026-11-13
-- PRD version: v3
-- Status: frozen after approval on 2026-11-12 (operator "Sim" to "Congelo `prds/sensitive-database-source.PRD.md` como v1, com o segundo repositório no escopo?"); v2 frozen after approval on 2026-11-12 (operator "Sim" to "Posso congelar `prds/sensitive-database-source.PRD.md` como v2?"); v3 frozen after approval on 2026-11-13 (operator "Congelar v3 (Recomendado)" to "Posso congelar prds/sensitive-database-source.PRD.md como v3 …?", which stated that the product commitment now holds on the SUPPORTED branch only — re-confirmed)
+- Frozen at: 2026-11-12 (v1; v2 the same day); v3 2026-11-13; v4 2026-11-15
+- PRD version: v4
+- Status: frozen after approval on 2026-11-12 (operator "Sim" to "Congelo `prds/sensitive-database-source.PRD.md` como v1, com o segundo repositório no escopo?"); v2 frozen after approval on 2026-11-12 (operator "Sim" to "Posso congelar `prds/sensitive-database-source.PRD.md` como v2?"); v3 frozen after approval on 2026-11-13 (operator "Congelar v3 (Recomendado)" to "Posso congelar prds/sensitive-database-source.PRD.md como v3 …?", which stated that the product commitment now holds on the SUPPORTED branch only — re-confirmed); v4 frozen after approval on 2026-11-15 (operator "Congelar v4 (Recomendado)" to "Posso congelar o PRD como v4?", which stated that the amendment only adds candidate S to the list, changes no requirement, metric or branch rule, and that its delta had no independent read)
 - Independent read: ran — throughline:blind-critic, lenses J1/J3/J5/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 4 findings, all acted on (carrier table, J5 evidence, M4, R5, Open questions); conformance passed. The F3 replay design was read under J3 before it ran (5 findings, all acted on). v2 — ran — throughline:blind-critic, lenses J1/J3/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07 (2026-11-12); 5 findings, all acted on in this draft: the part-(b) rule over-applied to a note that predates its failure → bound to "a case the note was not written from", checked per row (J1); "run" narrowed "answered" → "answered; INCONCLUSIVE does not answer" (J1); the invalidator over-claimed → scoped per test class, J5 falls only if both fail (J1); the precondition's rules contradicted test 2 → per-test rules, plus the missing "read under J3 before it runs" (J3); the amendment rationale contradicted test 1 → limited to the first replay's design. Conformance and C3 passed. v3 — ran — throughline:blind-critic, 2026-11-13, the same sequence of reads as Brief v3 (J1/J3/J6 + conformance vs AGENTS.md and docs/domain.md BR01–BR07, then narrow reads per fix round); findings acted on include: the invalidator read a point estimate as a fact; a single-replay escape clause; an attempt definition and α correction; floors incl. NOT SUPPORTED at the minimum effect; PR7 class-scoping; the withdrawn PR12/keep-a-path and earn-or-retire structures; branch-scoped PR1/PR8/PR9; PR8a/PR8b; PR13 custody; PR2 on the second branch. Conformance and C3 passed
 - Source: Brief `briefs/sensitive-database-source.BRIEF.md` v3 (frozen 2026-11-13; v1 and v2 frozen 2026-11-12). Vision skipped: a
   capability inside an existing product (iris; its direction is the `agent-context-layer` PRD and the parent
@@ -50,6 +50,17 @@
   Freeze: approved 2026-11-13 after Brief v3's freeze, structure and product commitment re-confirmed
   (Status). Test-1 design acceptances recorded with the operator the same day: NOT SUPPORTED at the
   minimum effect ≈ 0.40–0.48, and a combined false-SUPPORTED bound ≈ 0.12 at α = 0.025 for attempt 2
+  v3→v4 (2026-11-15, approved): adds candidate S to the carrier candidates — a
+  standalone statement-level carrier outside iris (the guard this PRD called G, built as its own program
+  that holds the credential) — and names it wherever the outside-iris branch lists its candidates (Scope
+  "Branches", the carrier table's kept column for J1–J4 and J6 reach, the PR2 sentence of the second
+  branch). No requirement, metric, risk or branch rule changes. Why: the Spec's blind read (2026-11-15)
+  found that the Spec's chosen carrier is not P as this PRD defines it (P "covers every client, `psql`
+  included"; the chosen carrier accepts SQL through a command and closes the direct client by custody plus
+  A3) and is not otherwise in "among P, A1 and A3". The candidates were run on 2026-11-15: the best
+  existing server and the one existing proxy with a parsed column policy both returned a flagged column in
+  at least one PR4 form (Spec, Tech choices). The delta had no independent read of its own (stated to the
+  approver). Citers checked 2026-11-15: the Brief cites no PRD version; the Spec is born against v4
 
 ## Context & users
 For the operator's agents (any session, any repository) answering operational demands by querying an
@@ -79,9 +90,9 @@ writes through iris (`:C1`).
   - **SUPPORTED** → J5 for the general-lesson class is in the first build, and iris carries J5 and J6
     (BR01; BR05 earned by the composition). J1–J4 sit in G or P, chosen on S4/M4 merits.
   - **Any other verdict**, or a test-1 design or attempt that ends without one (unless a further test-1
-    budget is recorded before the first build starts) → the first build (J1–J4, J7, C4) is entirely outside iris, among P, A1 and A3 on
+    budget is recorded before the first build starts) → the first build (J1–J4, J7, C4) is entirely outside iris, among P, S, A1 and A3 on
     S4/M4 merits, and the agent reaches the databases through that carrier. PR2 (the guarantee field) is
-    then carried by a P that reports it, or by the guarantee reporter A1 must be paired with (A1 has no
+    then carried by a P or an S that reports it, or by the guarantee reporter A1 must be paired with (A1 has no
     per-connection class); which one is the Spec's choice. iris has no surface for this
     source until J5's value settles for a class (#73): a surface that only re-exposes one source does not
     earn its cost (BR05), and no transport-only exception is made.
@@ -126,17 +137,20 @@ Candidates:
   (AST-parsing, table allowlists, row limits); veil (per-column masking, read-only); hoop (wire-protocol
   gateway with result masking). Sources are READMEs and vendor posts, unverified.
 - **G:** a guard embedded in the iris carrier, reusing A1's guard approach.
+- **S:** a standalone statement-level carrier outside iris: G's guard built as its own program, which holds
+  the credential and accepts SQL through a command. Unlike P it does not sit under other clients, so it
+  closes the direct client through A3 routing or refusal plus credential custody (the C4 row). (v4)
 
 | Job | Kept for the Spec | Eliminated — disqualifier — intrinsic? — how established |
 |---|---|---|
-| J1 refuse writes | G (SUPPORTED branch); P; A1 (other branch) | A3 by injecting client settings (read-only transaction, timeout): undone by an in-SQL `SET` — intrinsic to a client-requested setting — probe on a local PostgreSQL 16, 2026-11-12. A1 as a server, on the SUPPORTED branch: does not compose with J5 unless iris drives it as a client (the swap that keeps P); G reuses its guard approach, so the Spec weighs "iris through A1" against G there (Brief v3 `:S4`); on the other branch A1 is kept. A2: infeasible (operator, 2026-11-12) |
-| J1 report the guarantee / refuse a weaker one | G (SUPPORTED branch); P (if it reports) | A1: no per-connection class concept — code read at `15c8e33` |
-| J2 keep sensitive objects out of results | G (SUPPORTED branch); P; A3 post-tool replacement | A1: no mask/deny/redact policy — code read with positive control. A2: infeasible. A3 is NOT eliminated: a post-tool hook replaced a Bash output before the model saw it, and the original never reached the local transcript (probe, headless session, 2026-11-12); harness telemetry is off on this machine. A3's costs for the Spec: on formatted text a value's source column is lost under an alias or an expression, so it would re-run the same query analysis; it covers one harness only (J6); where harness telemetry is enabled, that telemetry captures the original output before the hook (hooks reference, read verbatim). S4's reading "A3 cannot filter results" is withdrawn |
-| J3 load bound | G (SUPPORTED branch); P; A1 (other branch) | A3 by client settings: undone by `SET statement_timeout` — intrinsic — same probe |
-| J4 preconditions | G (SUPPORTED branch); P; A3 by client settings (encoding and search path are correctness defaults, not a guarantee against the agent) | — |
+| J1 refuse writes | G (SUPPORTED branch); P; S and A1 (other branch) | A3 by injecting client settings (read-only transaction, timeout): undone by an in-SQL `SET` — intrinsic to a client-requested setting — probe on a local PostgreSQL 16, 2026-11-12. A1 as a server, on the SUPPORTED branch: does not compose with J5 unless iris drives it as a client (the swap that keeps P); G reuses its guard approach, so the Spec weighs "iris through A1" against G there (Brief v3 `:S4`); on the other branch A1 is kept. A2: infeasible (operator, 2026-11-12) |
+| J1 report the guarantee / refuse a weaker one | G (SUPPORTED branch); P (if it reports); S (other branch) | A1: no per-connection class concept — code read at `15c8e33` |
+| J2 keep sensitive objects out of results | G (SUPPORTED branch); P; S (other branch); A3 post-tool replacement | A1: no mask/deny/redact policy — code read with positive control. A2: infeasible. A3 is NOT eliminated: a post-tool hook replaced a Bash output before the model saw it, and the original never reached the local transcript (probe, headless session, 2026-11-12); harness telemetry is off on this machine. A3's costs for the Spec: on formatted text a value's source column is lost under an alias or an expression, so it would re-run the same query analysis; it covers one harness only (J6); where harness telemetry is enabled, that telemetry captures the original output before the hook (hooks reference, read verbatim). S4's reading "A3 cannot filter results" is withdrawn |
+| J3 load bound | G (SUPPORTED branch); P; S and A1 (other branch) | A3 by client settings: undone by `SET statement_timeout` — intrinsic — same probe |
+| J4 preconditions | G (SUPPORTED branch); P; S (other branch); A3 by client settings (encoding and search path are correctness defaults, not a guarantee against the agent) | — |
 | J5 object-keyed knowledge | iris (BR01) | A1 as a separate server: a layer cannot see its queries — intrinsic to a separate server, dissolved by embedding (G) — architecture read. P: a proxy cannot attach notes to the agent's result — intrinsic — but iris querying through P keeps J5 in iris. A3 could add notes as context, but the composition is iris's by BR01 |
 | J6 transport part (uniform CLI/MCP surfaces) | iris (SUPPORTED branch); deferred otherwise | A3: one harness only |
-| J6 reach part (any session, any working directory) | the chosen read carrier: P, or A1 only paired with a guarantee reporter (PR2); iris on SUPPORTED | — (A3 as a router to that carrier is kept) |
+| J6 reach part (any session, any working directory) | the chosen read carrier: P, S, or A1 only paired with a guarantee reporter (PR2); iris on SUPPORTED | — (A3 as a router to that carrier is kept) |
 | J7 rollback-only writes | outside iris: a runner that parses and wraps the statements, reached by A3 routing | iris: forbidden by C1 — intrinsic to the iris carrier, not the job. A1: two modes only — code read. A3 by wrapping text (`BEGIN … ROLLBACK` around a script): a `COMMIT` inside the script commits everything before it, and what follows runs in autocommit — intrinsic to wrapping without parsing — probe on a local PostgreSQL 16, 2026-11-12 (both rows of a two-insert script with a `COMMIT` between them survived the `ROLLBACK`) |
 | C4 close the direct client | A3 routing or refusal; credential custody (the credential reachable only by the chosen carrier); P plus credential custody (covers every client, `psql` included) | iris: cannot close a client it does not run — intrinsic |
 
@@ -299,7 +313,7 @@ S4's comparison is incomplete for A3 and P. The rows above extend it, and the Sp
 - R5: Query results transit the model provider. What may be read at all is the custody owner's call
   (`:N6`); PR4 enforces a declared policy, it does not decide one. Where harness telemetry is enabled, it
   records a tool's original output before any post-tool hook runs (hooks reference). It is off on this
-  machine (probe, 2026-11-12). A placement upstream of the harness (G or P) keeps a flagged value out of that
+  machine (probe, 2026-11-12). A placement upstream of the harness (G, P or S) keeps a flagged value out of that
   telemetry whatever its setting; a post-tool hook does so only while telemetry stays off.
 - R6: Verifying against the case study needs the institutional VPN and the operator's credentials; CI runs
   only against a synthetic database. The M1 replay is an operator-present run.
