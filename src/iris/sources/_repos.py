@@ -105,11 +105,6 @@ def parse_key(key: str) -> Ref | None:
     return None
 
 
-def repo_paths(mrconfig: Path) -> list[Path]:
-    """Parse ``mrconfig`` section headers into absolute repo paths."""
-    return [path for path, _ in repo_entries(mrconfig)]
-
-
 def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:
     """Each ``mrconfig`` repo section as ``(path, checkout command)`` — the command is ``""`` when absent."""
     text = mrconfig.read_text(encoding="utf-8")

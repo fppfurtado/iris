@@ -14,7 +14,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from iris import cli
-from iris.core.source import KIND_CHAIN, KIND_NODES, Query
+from iris.core.source import KIND_CHAIN, KIND_NODES, KIND_UNIVERSE, Query
 from iris.sources._repos import identity_map, repo_entries
 from iris.sources.constellation import ConstellationSource
 from iris.sources.tracker import TrackerSource
@@ -146,6 +146,28 @@ def test_tracker_chain_ref_to_an_ambiguous_name_resolves_nothing_and_says_why(tm
     assert "ambiguous identity (two or more registry entries): foo" in result.note
 
 
+def test_tracker_list_mode_notes_an_ambiguous_name_and_runs_nothing(tmp_path: Path) -> None:
+    one = _checkout(tmp_path, "x1", "git@github.com:org1/foo.git")
+    two = _checkout(tmp_path, "x2", "git@github.com:org2/foo.git")
+    mrconfig = _mrconfig(tmp_path, [(one, ""), (two, "")])
+    calls: list[Path] = []
+    source = TrackerSource(
+        "tracker", {"mrconfig": str(mrconfig), "command": ["gh"]}, runner=lambda c, w: calls.append(w) or "[]"
+    )
+    result = source.read(Query(text="see foo#3", kinds=frozenset({KIND_NODES})))
+    assert calls == [] and result.nodes == []
+    assert "ambiguous identity (two or more registry entries): foo" in result.note
+
+
+def test_disk_only_checkout_is_keyed_by_its_own_forge_name(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    _checkout(root, "local-dir", "git@github.com:owner/real.git")
+    mrconfig = _mrconfig(tmp_path, [])
+    source = ConstellationSource("constellation", {"mrconfig": str(mrconfig), "roots": [str(root)]})
+    result = source.read(Query(kinds=frozenset({KIND_UNIVERSE})))
+    assert [n.id for n in result.nodes if n.kind == "repo"] == ["real"]
+
+
 # --- inbound, end to end: the 2026-11-19 split is closed -----------------------------------------------
 
 
@@ -180,3 +202,22 @@ def test_inbound_by_forge_name_resolves_the_item_and_returns_the_store_citations
     assert result.exit_code == 0, result.output
     assert "b#5  [open]  the item" in result.stdout
     assert "journal/x.md#blk" in result.stdout
+
+
+def test_inbound_to_an_ambiguous_name_is_unknown_with_the_note(tmp_path, monkeypatch) -> None:
+    one = _checkout(tmp_path, "x1", "git@github.com:org1/foo.git")
+    two = _checkout(tmp_path, "x2", "git@github.com:org2/foo.git")
+    mrconfig = _mrconfig(tmp_path, [(one, ""), (two, "")])
+    view = "import json; print(json.dumps({'number': 3, 'title': 'wrong', 'state': 'OPEN'}))"
+    config = tmp_path / "sources.toml"
+    config.write_text(
+        f'[sources.constellation]\ntype = "constellation"\nmrconfig = "{mrconfig}"\n\n'
+        f'[sources.tracker]\ntype = "tracker"\nmrconfig = "{mrconfig}"\n'
+        f'view = ["{sys.executable}", "-c", "{view}"]\n[sources.tracker.map]\nstate = "state"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("IRIS_CONFIG", str(config))
+    result = CliRunner().invoke(cli.app, ["inbound", "foo#3"])
+    assert "foo#3  unknown" in result.stdout
+    assert "wrong" not in result.stdout
+    assert "ambiguous identity (two or more registry entries): foo" in result.output
