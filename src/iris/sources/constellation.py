@@ -15,7 +15,8 @@ registry section, so the descriptor's alone.
 Each repo node carries the facts a membership check joins on (``attrs``): its local ``path``, whether it
 has a ``descriptor``, its ``origin`` (``mrconfig`` | ``disk``), ``exists`` for registry entries, its forge
 ``slug`` (from the checkout's ``origin`` remote, or from the clone URL of an uncloned registry entry; see
-``_repos.local_slug``) and the descriptor's ``declared_name``. Node ids stay the checkout basename.
+``_repos.local_slug``) and the descriptor's ``declared_name``. A repo node's id is its join identity
+(``_repos.identity_map``): the forge name, else the checkout basename.
 
 On a query whose kinds include ``universe``, the source also scans the configured on-disk ``roots`` (up to
 ``depth`` levels, default 2) and adds every checkout found there with ``origin="disk"``: a directory is a
@@ -36,7 +37,7 @@ from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_NODES, KIND_UNIVERSE, Query, Source, SourceResult
 from iris.sources._catalog import parse_descriptor, parse_entity_ref
-from iris.sources._repos import identity, local_slug, repo_entries, repo_tags
+from iris.sources._repos import ambiguity_note, identity, identity_map, local_slug, repo_entries, repo_tags
 
 _DEFAULT_DEPTH = 2
 
@@ -162,6 +163,7 @@ class ConstellationSource:
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
         entries = repo_entries(mrconfig)
         registry_tags = repo_tags(mrconfig)
+        identities = identity_map(entries)
         nodes: list[Node] = []
         relations: list[Relation] = []
         missing = 0
@@ -171,9 +173,10 @@ class ConstellationSource:
                 "descriptor": False,
                 "origin": "mrconfig",
                 "exists": repo.is_dir(),
-                "slug": local_slug(repo, checkout),
+                "slug": identities.slugs[repo],
             }
-            if not self._add_repo(repo, attrs, nodes, relations, registry_tags.get(repo, [])):
+            name = identities.by_path[repo]
+            if not self._add_repo(name, repo, attrs, nodes, relations, registry_tags.get(repo, [])):
                 missing += 1
         if query.kinds is not None and KIND_UNIVERSE in query.kinds:
             nodes.append(
@@ -205,19 +208,28 @@ class ConstellationSource:
                         continue
                     registered.add(real)
                     attrs = {"path": str(repo), "descriptor": False, "origin": "disk", "slug": local_slug(repo)}
-                    self._add_repo(repo, attrs, nodes, relations, [])
-        note = ""
+                    self._add_repo(identity(repo), repo, attrs, nodes, relations, [])
+        notes = []
         if missing:
-            note = f"incomplete-coverage: {missing}/{len(entries)} repos lack catalog-info.yaml"
+            notes.append(f"incomplete-coverage: {missing}/{len(entries)} repos lack catalog-info.yaml")
+        if identities.ambiguous:
+            notes.append(ambiguity_note(identities.ambiguous))
+        note = "; ".join(notes)
         return SourceResult(nodes=nodes, relations=relations, ok=True, note=note)
 
     def _add_repo(
-        self, repo: Path, attrs: dict, nodes: list[Node], relations: list[Relation], registry_tags: list[str]
+        self,
+        name: str,
+        repo: Path,
+        attrs: dict,
+        nodes: list[Node],
+        relations: list[Relation],
+        registry_tags: list[str],
     ) -> bool:
         """Append ``repo``'s nodes and relations; return whether it carries a descriptor.
 
-        ``registry_tags`` are the words of the repo's registry section (empty for one found only on disk)."""
-        name = identity(repo)
+        ``name`` is the repo's join identity; ``registry_tags`` are the words of its registry section (empty
+        for one found only on disk)."""
         catalog = repo / "catalog-info.yaml"
         if catalog.is_file():
             node, resources, rels = _nodes_from_catalog(name, repo, catalog, "constellation", attrs, registry_tags)
