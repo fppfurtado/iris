@@ -198,12 +198,17 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
     )
 
 
+def _state_label(state: str | None) -> str:
+    """A composed state as the CLI prints it: the state itself, or `state unknown`."""
+    return "state unknown" if state in (None, "unknown") else state
+
+
 @app.command()
 def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `^<anchor>`.")) -> None:
     """Show what cites one item, joined to its live state (read-only).
 
     Reads the item's state and the store records that cite it (its tasks among them, each with its
-    open/done state). A source that could not be read is listed under UNKNOWN — never folded into 'no
+    open/done state, or state unknown). A source that could not be read is listed under UNKNOWN — never folded into 'no
     citations'; SEARCHED and NOT SEARCHED say what an absence covers.
     """
     if parse_key(key) is None:
@@ -216,15 +221,12 @@ def inbound(key: str = typer.Argument(..., help="One item key: `<repo>#<n>` or `
     if composed.item is None:
         typer.echo(f"{composed.key}  unknown — could not resolve")
     else:
-        roles = f"  [{'/'.join(composed.item.roles)}]" if composed.item.roles else ""
-        typer.echo(f"{composed.key}{roles}  {_oneline(composed.item.title)}")
+        typer.echo(f"{composed.key}  [{_state_label(composed.item_state)}]  {_oneline(composed.item.title)}")
     if composed.tasks:
         typer.echo(f"## tasks citing {composed.key}")
         for node in composed.tasks:
-            if node.roles:
-                typer.echo(f"^{node.id}  [{'/'.join(node.roles)}]  {_oneline(node.title)}")
-            else:
-                typer.echo(f"^{node.id}  [state unknown]")
+            line = f"^{node.id}  [{_state_label(composed.task_states.get(node.id))}]"
+            typer.echo(f"{line}  {_oneline(node.title)}" if node.title else line)
     if composed.citations:
         typer.echo("## citations")
         for node in composed.citations:

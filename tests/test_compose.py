@@ -292,3 +292,23 @@ def test_lifecycle_state_lowercases_and_open_wins():
     assert lifecycle_state(Node(id="t", kind="task", title="", roles=["done"])) == "done"
     assert lifecycle_state(Node(id="t", kind="task", title="", roles=[])) is None
     assert lifecycle_state(Node(id="r", kind="repo", title="", roles=["open"])) is None
+
+
+# --- item-inbound-context v3 SP-T13: compose_inbound computes the states once ---
+
+from iris.core.compose import compose_inbound  # noqa: E402
+
+
+def test_compose_inbound_sets_item_and_task_states():
+    item = Node(id="iris#5", kind="issue", title="x", roles=["opened"])
+    task = Node(id="t1", kind="task", title="", roles=[])
+    resolved_task = Node(id="t1", kind="task", title="t", roles=["done"])
+    ctx = compose_inbound(
+        "iris#5",
+        FederationResult(nodes=[item]),
+        FederationResult(nodes=[task]),
+        FederationResult(nodes=[resolved_task]),
+    )
+    assert ctx.item_state == "unknown"
+    assert ctx.task_states == {"t1": "done"}
+    assert compose_inbound("iris#9", FederationResult(), FederationResult()).item_state is None

@@ -237,6 +237,11 @@ class InboundContext:
     # no configured source searches. Without them an empty result reads as "nothing anywhere cites it".
     searched: list[str] = field(default_factory=list)
     not_covered: list[str] = field(default_factory=list)
+    # The states the surfaces render (item-inbound-context v3, SP-T13), computed here once so CLI and MCP keep
+    # parity: the item's ``lifecycle_state`` or ``"unknown"`` (``None`` when the item is unresolved), and each
+    # task's id → its ``lifecycle_state`` or ``"unknown"``.
+    item_state: str | None = None
+    task_states: dict[str, str] = field(default_factory=dict)
 
 
 # Fixed by the verb's design (Spec v2): no source reads forge items for citations of a key, and the citation
@@ -292,6 +297,8 @@ def compose_inbound(
         seen.add((node.kind, node.id))
     passes = [state, inbound] + ([task_state] if task_state is not None else [])
     return InboundContext(
+        item_state=None if item is None else (lifecycle_state(item) or "unknown"),
+        task_states={t.id: lifecycle_state(t) or "unknown" for t in tasks},
         key=key.strip(),
         item=item,
         tasks=tasks,

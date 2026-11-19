@@ -134,8 +134,9 @@ def inbound(key: str) -> dict:
     """Show what cites one item (`<repo>#<n>` or `^<anchor>`), joined to its live state, off the SAME
     composer the CLI uses (read-only). `unknown` names every source that could not be read — a consumer
     must never read empty `tasks`/`citations` as 'nothing cites it' while `unknown` is non-empty, and an
-    absence covers only the `searched` sources — never what `not_covered` lists. Each task carries `state`:
-    `open`, `done`, or `unknown` (the store names it as citing, but no task list resolved it)."""
+    absence covers only the `searched` sources — never what `not_covered` lists. The `item` carries `state`
+    (`open`, `closed`, `done`, or `unknown` when it has no state in its kind's vocabulary), and so does each
+    task: `open`, `done`, or `unknown` (no task list resolved it, or its state is outside `open|done`)."""
     if parse_key(key) is None:
         return {"error": f"invalid key {key!r}: expected exactly one `<repo>#<n>` or `^<anchor>`"}
     config = active_config()
@@ -150,8 +151,8 @@ def inbound(key: str) -> dict:
     )
     return {
         "key": composed.key,
-        "item": asdict(composed.item) if composed.item is not None else None,
-        "tasks": [{**asdict(n), "state": n.roles[0] if n.roles else "unknown"} for n in composed.tasks],
+        "item": {**asdict(composed.item), "state": composed.item_state} if composed.item is not None else None,
+        "tasks": [{**asdict(n), "state": composed.task_states.get(n.id, "unknown")} for n in composed.tasks],
         "citations": [asdict(n) for n in composed.citations],
         "unknown": list(composed.unknown),
         "notes": composed.notes,
