@@ -96,3 +96,33 @@ def test_mcp_chain_exposes_unknown_state_distinct_key(monkeypatch):
     assert [n["id"] for n in out["unknown_state"]] == ["iris#5"]
     assert out["blocker_candidates"] == []
     assert out["resolved_non_blocking"] == []  # not folded into non-blocking
+
+
+# --- f6-minimo v1.1 F6-T7 (iris#81): an out-of-vocabulary state is unknown; telemetry counts it ---
+
+
+def test_cli_chain_opened_state_is_unknown_and_not_clear(monkeypatch):
+    _canned(monkeypatch, cli, [Node(id="pje#2023", kind="issue", title="gitlab issue", roles=["opened"])])
+    result = runner.invoke(cli.app, ["chain", "pje#2023"])
+    assert result.exit_code == 0
+    assert "## unknown state" in result.output
+    assert "no open blockers" not in result.output
+    assert "## resolved (not blocking)" not in result.output
+
+
+def _capture_log(monkeypatch, module):
+    seen = []
+    monkeypatch.setattr(module, "log_request", lambda *a, **k: seen.append(k))
+    return seen
+
+
+def test_chain_telemetry_counts_state_unknown_cli_and_mcp(monkeypatch):
+    nodes = [Node(id="pje#2023", kind="issue", title="gitlab issue", roles=["opened"])]
+    _canned(monkeypatch, cli, nodes)
+    seen = _capture_log(monkeypatch, cli)
+    runner.invoke(cli.app, ["chain", "pje#2023"])
+    assert seen[-1]["extra"]["state_unknown"] == 1
+    _canned(monkeypatch, mcp_adapter, nodes)
+    seen = _capture_log(monkeypatch, mcp_adapter)
+    mcp_adapter.chain.fn("pje#2023")
+    assert seen[-1]["extra"]["state_unknown"] == 1

@@ -37,8 +37,8 @@ frozen value objects and exposes no write path to any source.
   SPECIFIC nodes a work item's prose references (`<repo>#<n>` issues across repos + `^<id>` anchors),
   with the OPEN ones marked as data-derived candidate blockers. It has TWO unknown faces, both surfaced
   as UNKNOWN and never as clear (the failure-mode guard): `unresolved` (a ref that resolved to no node)
-  and `state_unknown` (a resolved node whose state was undetermined) — "nothing blocks" holds only when
-  both are empty.
+  and `state_unknown` (a resolved node with no state in its kind's closed vocabulary — no role, or a value
+  outside it) — "nothing blocks" holds only when both are empty.
 - **Relations:** the referencing edge (an item *references* a node) is realized STRUCTURALLY by chain
   membership, not stored as a `Relation` — the referencing item has no persisted node identity to be a
   relation's `from_`. The identity match is still by resolved id (BR06: `<slug>#<n>` / `^<id>`).
@@ -139,7 +139,7 @@ frozen value objects and exposes no write path to any source.
   store field but derived from the `<repo>#<number>` references in the task's text (BR06: identity, not a
   carried key); a task naming no repo stays outside the join. In a `chain` read a SPECIFICALLY-REFERENCED
   anchor (`^<id>`) is resolved regardless of state, carrying its lifecycle state (`roles=["open"]` |
-  `["done"]`). In an `inbound` read a task is one the store's inbound read names as citing the key; its
+  `["done"]`); the vocabulary is closed — any other value is an unknown state, never a discharged one. In an `inbound` read a task is one the store's inbound read names as citing the key; its
   list state comes from the `chain` read, and it is never the item itself.
 
 ### Citation

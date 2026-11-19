@@ -143,18 +143,30 @@ class ReferencedChain:
     resolved: list[Node] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
     blocker_candidates: list[Node] = field(default_factory=list)
-    # Resolved nodes whose STATE could not be determined (empty roles — e.g. the `view` command's JSON
-    # omitted the state field). Surfaced as UNKNOWN, never as "not blocking": a resolved node with no
+    # Resolved nodes with no state in their kind's closed vocabulary (``lifecycle_state`` is ``None``: no
+    # role — e.g. the `view` JSON omitted the state field — or a value outside it). Surfaced as UNKNOWN, never as "not blocking": a resolved node with no
     # known state is a SECOND unknown beside `unresolved`, so "nothing blocks" cannot be asserted while
     # this is non-empty either (the failure-mode guard, completed).
     state_unknown: list[Node] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
 
-def _is_open(node: Node) -> bool:
-    """A node is a live blocker only while OPEN — a closed issue / done task is discharged, never a
-    candidate. State is carried in ``roles`` by the chain-mode source reads (F6-T2/T3)."""
-    return "open" in {r.lower() for r in node.roles}
+# The closed lifecycle vocabulary per kind (f6-minimo v1.1, F6-T7): the open value, then the discharged one.
+_LIFECYCLE: dict[str, tuple[str, str]] = {"issue": ("open", "closed"), "task": ("open", "done")}
+
+
+def lifecycle_state(node: Node) -> str | None:
+    """The node's lifecycle state in its kind's closed vocabulary — issue ``open`` | ``closed``, task ``open`` |
+    ``done`` — read from its lowercased ``roles``; ``open`` wins over the discharged value when both are present.
+    Any other value, another kind, or no role → ``None`` (state UNKNOWN, never discharged)."""
+    vocab = _LIFECYCLE.get(node.kind)
+    if vocab is None:
+        return None
+    roles = {r.lower() for r in node.roles}
+    for value in vocab:
+        if value in roles:
+            return value
+    return None
 
 
 def is_gate_marked(node: Node) -> bool:
@@ -186,10 +198,11 @@ def compose_referenced_nodes(item_text: str, result: FederationResult) -> Refere
             continue
         if node not in resolved:
             resolved.append(node)
-            if not node.roles:
-                # Resolved, but state undetermined — UNKNOWN, never silently "not blocking".
+            state = lifecycle_state(node)
+            if state is None:
+                # Resolved, but no state in the kind's vocabulary — UNKNOWN, never silently "not blocking".
                 state_unknown.append(node)
-            elif _is_open(node):
+            elif state == "open":
                 blocker_candidates.append(node)
     return ReferencedChain(
         item=item_text,

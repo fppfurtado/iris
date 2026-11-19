@@ -193,6 +193,7 @@ def chain(item: str = typer.Argument(..., help="A work item's text (it carries `
         extra={
             "blocker_candidates": len(composed.blocker_candidates),
             "unresolved": len(composed.unresolved),
+            "state_unknown": len(composed.state_unknown),
         },
     )
 
