@@ -292,37 +292,45 @@ implicit. Extend the model when a consumer validates a need for more issue field
   example already says). (b) Per repo, resolve each of `command`, `view`, `items`, `map`, `states` from the
   matching entry, else from the top level; `map` and `states` merge per key over the top level; a `local:` slug
   (no host) uses the top level. (c) UNSERVED, per mode: in `context` a repo with no resolved `command`; in `chain`
-  a ref whose repo has no resolved `view`. It is counted unreadable (`ok=False`) with a note that names the host,
-  or says `no forge host` for a `local:` slug, and carries "no `view` command" (chain, the v2 wording) / "no
+  a ref whose repo has no resolved `view`. It adds to the existing unreadable count (`N/M repos unreadable`,
+  `chain: N ref(s) unreadable`), sets `ok=False`, and adds ONE note per host (listing how many repos or refs),
+  naming the host, or saying `no forge host` for a `local:` slug, and carrying "no `view` command" (chain, the v2 wording) / "no
   `command`" (context, new); the whole-source return ("chain: no `view` command configured (BR04)", `tracker.py`) becomes this per-ref rule. (d) A
   `forges` value that is not a table carrying `command` or `view` (e.g. an unquoted host key that TOML nested) is
-  a config error: a note naming the key, and the entry is ignored. (e) In `chain`, the raw state is lowercased
-  and looked up in `states` (keys lowercased on load) over the identity on `open` / `closed`; a `states` target
-  outside `open` / `closed` is a config error (note naming the key; that mapping ignored). An unmapped value
-  yields `roles=[]` and a note naming the raw value (`state '<raw>' not mapped`), so a missing field and an
-  unmapped value stay distinguishable. (f) The ambiguity note is emitted once per read, as today. — serves
+  a config error: the entry is ignored. Config errors (here, the duplicate key in (a), and the bad `states`
+  target in (e)) are found when the source is built and reported on every read that names ≥1 ref (a read that
+  names none spawns nothing and stays `ok=True`, as today): a note naming each key, and `ok=False`, so the
+  tracker lands in `degraded` and a broken config is never read as a clean answer. (e) In `chain`, the raw state is lowercased
+  and looked up in `states` (keys and targets lowercased on load) over the identity on `open` / `closed`; a
+  `states` target outside `open` / `closed` is a config error (that mapping ignored). An unmapped value yields
+  `roles=[]` and a note naming the raw value (`state '<raw>' not mapped`); a state that is absent, `null` or
+  `""` is MISSING — `roles=[]` and no such note — so a missing field and an unmapped value stay
+  distinguishable. (f) The ambiguity note is emitted once per read, as today. — serves
   `costura-iris-fonte:F4`, `costura-iris-fonte:C7`, `f6-minimo:J3` — acceptance (EARS):
   - "WHERE `forges."<h>"` is declared and a repo's slug host is `<h>`, the SYSTEM SHALL run that entry's
     `command` (context) or `view` (chain) for the repo, with its `items` / `map` / `states` merged per key over
     the top level";
   - "WHERE a repo's slug host matches no `forges` key, or its slug is `local:`, the SYSTEM SHALL use the top-level
-    keys, exactly as v2";
+    keys";
   - "IF a repo has no resolved `command` (context) or a ref's repo has no resolved `view` (chain), THEN the SYSTEM
-    SHALL count it unreadable, set `ok=False`, and add a note naming its host (or `no forge host`) that contains
-    "no `view` command" (chain) or "no `command`" (context)";
-  - "IF two `forges` keys are equal after lowercasing, THEN the SYSTEM SHALL use the first, ignore the later, and
-    add a note naming it";
+    SHALL add it to the unreadable count, set `ok=False`, and add one note per host naming it (or `no forge
+    host`) that contains "no `view` command" (chain) or "no `command`" (context)";
+  - "IF two `forges` keys are equal after lowercasing, THEN the SYSTEM SHALL use the first and ignore the later;
+    AND every read naming ≥1 ref SHALL carry a note naming it and `ok=False`";
   - "WHEN a mixed registry is read with every host served, the SYSTEM SHALL return the issues of both forges with
     `ok=True` and no unreadable note";
   - "WHEN `view` returns state `opened` and `states` maps `opened = "open"`, the node SHALL carry `roles=['open']`;
     WHEN it returns `closed` with that same table, `roles=['closed']`; WHEN it returns `OPENED` with `states = {
     Opened = "open" }`, `roles=['open']`; WHEN it returns a value neither `states` nor the identity maps,
-    `roles=[]` and a note naming the value; WHEN the `view` JSON has no state field, `roles=[]` and no such note"
-    (the two stay distinguishable);
+    `roles=[]` and a note naming the value; WHEN the `view` JSON's state is absent, `null` or `""`, `roles=[]` and
+    no such note" (the two stay distinguishable);
   - "IF a `forges` value carries neither `command` nor `view`, or a `states` target is outside `open` / `closed`,
-    THEN the SYSTEM SHALL ignore it and add a note naming its key";
-  - "the existing tests SHALL pass unchanged (no `forges`, no `states` = v2 behaviour; the no-`view` note keeps
-    its v2 wording)".
+    THEN the SYSTEM SHALL ignore it, AND every read naming ≥1 ref SHALL carry a note naming its key and
+    `ok=False`";
+  - "the existing tests SHALL pass unchanged (the no-`view` note keeps its v2 wording)". With no `forges` and no
+    `states`, v3 differs from v2 in two deliberate ways only: a chain read with no `view` whose refs all fall
+    outside the registry is now `ok=True` (no ref was unserved), and an unserved context repo gets a host note
+    beside the count.
   — deliverable: persisted tests in `tests/test_tracker_source.py` (injected runner, two hosts, a `local:` repo),
   one CLI-level `chain` test over a mixed registry. — depends on: SP-T6, `f6-minimo` F6-T7 (the guard the
   `states` choice relies on)

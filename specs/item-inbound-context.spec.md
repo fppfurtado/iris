@@ -130,7 +130,8 @@ InboundContext → CLI / MCP`.
   names every source degraded in any of the three passes. (v3) It fills `item_state` and `task_states`.
 - CLI `iris inbound <key>`: sections `## item` (key, state, title; or `unknown — could not resolve`; (v3) the
   state is the composer's `item_state`, printed `[open|closed|done]` or `[state unknown]`), `## tasks
-  citing <key>` (`^<id>  [open|done]  <first line>`; (v2) `^<id>  [state unknown]` for an unresolved task),
+  citing <key>` (`^<id>  [open|done]  <first line>`; (v2) `^<id>  [state unknown]` for an unresolved task; (v3)
+  `^<id>  [state unknown]  <first line>` for a resolved task whose state is outside the vocabulary),
   `## citations` (`<locator>  [<type>]`), `## unknown` (each degraded source name — never folded into "no
   citations"), and (v2) `## searched` (each `searched` name) and `## not searched` (each `not_covered` entry),
   both always printed. Invalid key → message on stderr, exit 2. No records and nothing unknown → (v2)
@@ -285,10 +286,12 @@ resolves which of its records cite the key, tasks included). No new cross-cuttin
   "WHEN the item resolves with a state `lifecycle_state` recognises, the CLI SHALL print it as `[<state>]` and
   the MCP `item.state` SHALL equal it"; "WHEN the item resolves with no role or a role outside its kind's
   vocabulary (e.g. `opened`), the CLI SHALL print `[state unknown]` and the MCP `item.state` SHALL be
-  `"unknown"`"; "WHEN a citing task carries a role outside `open|done`, the CLI SHALL print `[state unknown]` and
-  MCP `tasks[].state` SHALL be `"unknown"`"; "the `item` record SHALL keep its other fields unchanged" —
+  `"unknown"`"; "WHEN a citing task resolves with a title and a role outside `open|done`, the CLI SHALL print
+  `^<id>  [state unknown]  <first line>` and MCP `tasks[].state` SHALL be `"unknown"`"; "WHEN a citing task is
+  unresolved, the CLI SHALL print `^<id>  [state unknown]` as in v2"; "the `item` record SHALL keep its other fields unchanged" —
   persisted tests in tests/test_compose.py, tests/test_cli_commands.py and tests/test_mcp_adapter.py; doc made
-  false: the MCP `inbound` docstring (names `item.state`) — depends on: `f6-minimo` F6-T7
+  false: the MCP `inbound` docstring (names `item.state`; a task is `unknown` when unresolved OR out of
+  vocabulary) and the CLI `inbound` docstring ("with its open/done state" → or state unknown) — depends on: `f6-minimo` F6-T7
 ## Coverage check (every in-scope Brief item → ≥1 task)
 - J1 → SP-T1 (key) + SP-T5 (state, via the existing chain reads) + SP-T13 [v3] (state vocabulary)
 - J2 → SP-T9 + SP-T10 (v2; SP-T2 superseded) · J3 → SP-T3 · J4 → SP-T4, SP-T5, SP-T10, SP-T11 · J5 → SP-T6, SP-T7, SP-T12, SP-T13 [v3]

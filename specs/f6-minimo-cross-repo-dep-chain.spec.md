@@ -179,5 +179,5 @@ Issue/Task ganham estado de lifecycle em `roles` (open|closed / open|done) QUAND
 especificamente; nova relação `references`; nova composição `item ⋈ referenced-nodes`. Registrado aqui p/
 o freeze não passar silencioso sobre "Only OPEN modeled". A atualização do domain.md acontece no build.
 [v1.1] O vocabulário é FECHADO e por kind: open|closed (issue), open|done (task); um valor fora do vocabulário
-do kind é estado desconhecido, nunca descarregado. Deliverable de F6-T7: `docs/domain.md` ReferencedChain (a
-entrada Issue fica com `spec-repo-issues-federation` v3 SP-T9).
+do kind é estado desconhecido, nunca descarregado. Deliverable de F6-T7: `docs/domain.md` ReferencedChain e Task
+(a entrada Issue fica com `spec-repo-issues-federation` v3 SP-T9).
