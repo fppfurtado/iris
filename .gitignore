@@ -15,3 +15,6 @@ build/
 
 # user source config (may reference private tools) — ship sources.example.toml instead
 sources.toml
+
+# Sovereign tracker snapshots (`tracker.py export`): local mirror, not versioned
+/backlog-snapshots/
