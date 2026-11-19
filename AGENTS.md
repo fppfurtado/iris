@@ -26,7 +26,7 @@ throughline: domain-glossary
 
 <!-- floor block vendored below; never edit inside it, extend below the closing marker -->
 
-<!-- agent-kit operational-floor v19 — single source: agent-kit/onboarding/operational-floor.md
+<!-- agent-kit operational-floor v20 — single source: agent-kit/onboarding/operational-floor.md
      Copy this whole block into your repo's own AGENTS.md / CLAUDE.md, below your own content.
      Extend BELOW the closing marker; never edit INSIDE the block. Re-copy when the version bumps.
      This block is a SHIPPED ASSET: it stays English-as-shipped regardless of your repo's `## Language`
@@ -150,8 +150,8 @@ with or without it.
   (`spec_surface.py match --repo . --paths <touched files>`); without it, scan the repo's spec files
   (`spec-*.md` / `spec_*.md` / `*.spec.md` / a bare `spec.md` / any `.md` under `specs/`) by hand. One found → the route defaults to *amend that Spec*, not skip it.
 - **PR-per-cycle; the agent never merges.** <!-- rung:pr-per-cycle-the-agent-never-merges --> Every cycle lands via a pull/merge request off the feature
-  branch — never a direct push to the default branch. The agent stops at a merge-ready PR (checks green,
-  review attested) and hands off; the **human performs the merge** (the terminal, least-reversible step).
+  branch — never a direct push to the default branch. The agent stops at a merge-ready PR and hands off; the **human
+  performs the merge** (the terminal, least-reversible step). <!-- merge-ready:def -->A change is **merge-ready** when its checks are green, its review is attested (or waived, and the hand-off says so with the reason), no known break is open, and the record was read for code committed after the review judged the change, with any it shows named in the hand-off. **The hand-off** is what the agent that ends the cycle gives to whoever merges: its closing message, and the pull request body where there is one.<!-- /merge-ready:def -->
 - **Review before land (the land-gate).** <!-- rung:review-before-land-the-land-gate --> Built code lands on the default branch only after the judgment
   review pass ran — attested — or a reasoned waiver is on record. The bar is *ran-or-waived*, not
   findings-resolved: acting on findings stays human judgment; the gate only ensures review was not silently
@@ -223,4 +223,4 @@ throughline-built code (use the land-gate CI recipe your throughline install shi
 protection. These are per-harness / per-platform add-ons, not a dependency of the norm — where they are
 absent, the self-checks still bind.
 
-<!-- /agent-kit operational-floor v19 -->
+<!-- /agent-kit operational-floor v20 -->
