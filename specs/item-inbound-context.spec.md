@@ -1,12 +1,23 @@
 # Spec: item inbound context — `iris inbound <key>`
 
 - Frozen at: 2026-10-29 (v1) · 2026-11-11 (v2)
-- Spec version: v2
+- Spec version: v3 (DRAFT — not frozen)
 - Source: Problem Brief `briefs/item-inbound-context.BRIEF.md` v1 (frozen 2026-10-29) — PRD skipped (a feature
   inside an existing product, the same path the F6-mínimo Spec took; tasks cite Brief J*/S* directly)
 - Status: v1 frozen after approval on 2026-10-29 (operator "sim" to "Freeze the Spec as v1?"); v2 frozen after
   approval on 2026-11-11 (operator "sim" to the v2 freeze question). Independent read: ran — blind-critic
-  J5/J6/J3/J1 (2026-11-11), 6 findings, all disposed in this text
+  J5/J6/J3/J1 (2026-11-11), 6 findings, all disposed in this text; v3 draft 2026-11-19, awaiting the pre-freeze
+  read and the operator's approval
+- Amendments: **v3 (2026-11-19, iris#81).** The item's state and each citing task's state follow the closed,
+  per-kind state vocabulary of `f6-minimo` v1.1 (F6-T7), computed ONCE in `compose_inbound` (so CLI and MCP keep
+  parity by construction): `InboundContext.item_state` and each task's state are the `lifecycle_state` value or
+  `"unknown"`. The CLI prints `[<state>]` or `[state unknown]`; the MCP `item` gains a `state` field and
+  `tasks[].state` takes the same value. Why: v2 printed the item's raw roles, so glab's `opened` showed as `[opened]`
+  and an item with no state showed no marker at all, while a task with no state already showed `[state
+  unknown]`; the MCP `item` carried no state field beside its roles. Changed: Interfaces (`compose_inbound`, CLI
+  `## item` / `## tasks`, MCP `item` / `tasks`). Added: SP-T13 [v3]. Blind reads over the three iris#81 drafts
+  (pre-freeze: 0 High, 4 Medium, 9 Low; delta: 0 High, 2 Medium, 5 Low); this Spec's findings disposed in this
+  text.
 - Amendments: **v2 (2026-11-11, iris#38 SP-T8 · iris#62 part 2 · iris#59 for `inbound`; operator delegated
   the design choice):** (1) the citing TASKS now come from the store's own inbound read, which resolves them
   per task since fppfurtado/mneme#343 (mneme 0.26.2: `knowledge/gtd.md#^<id>`, open and done). iris looks up
@@ -17,7 +28,7 @@
   cites it" (iris#62 part 2; the agent-kit#3065 case). (3) SP-T8's fixtures are redacted recordings pinned
   to the store snapshot `1f760ec`, re-recorded with the fixed store (decisions/0002 D4/D5; mneme#344 landed
   in 0.26.1), and its test file is renamed: `tests/test_earn_datum.py` already holds another Spec's earn datum.
-- Extends (not amends): `specs/f6-minimo-cross-repo-dep-chain.spec.md` v1 — reuses its ref parser
+- Extends (not amends): `specs/f6-minimo-cross-repo-dep-chain.spec.md` v1 ((v3) v1.1, whose `lifecycle_state` the item state uses) — reuses its ref parser
   (`parse_refs`) and the `chain`-mode reads of the `tracker` and `tasks` sources UNCHANGED to fetch the item's
   live state and (v2) the citing tasks' state; adds nothing to `iris chain` and edits none of its code paths.
 
@@ -85,7 +96,10 @@ InboundContext → CLI / MCP`.
   `inbound`, derived from the config at run time (each source whose `produces` contains `inbound`).
   `not_covered: list[str]` holds what no configured source searches, fixed by the verb's design: forge items
   citing the key (cross-forge fan-in, Brief:N4), and the citation forms outside identity under Brief:C3 (a
-  forge URL, a bare `#<n>`). Both are returned on every result.
+  forge URL, a bare `#<n>`). Both are returned on every result. (v3) `item_state: str | None` — the item's
+  `lifecycle_state`, or `"unknown"`; `None` when `item` is `None` — and `task_states: dict[str, str]` — each
+  task's id → its `lifecycle_state` or `"unknown"`, one entry per task. The surfaces render these and derive
+  no state themselves.
   - Candidates for `not_covered` (v2): (a) one fixed entry for forge fan-in (the first draft). Rejected: it
     hides that a configured source with no inbound read is not searched either, and that URL and bare-`#<n>`
     citations are never matched (blind read, 2026-11-11). The flaw is intrinsic, since a fixed list cannot
@@ -113,15 +127,17 @@ InboundContext → CLI / MCP`.
   None = None) -> InboundContext`. A task node from `inbound` takes `title` and `roles` from the
   `task_state` node with the same id. A task whose anchor equals an anchor key is dropped (the item is never
   its own citing task). Tasks and citations keep `inbound` order, de-duplicated by (kind, id). `unknown`
-  names every source degraded in any of the three passes.
-- CLI `iris inbound <key>`: sections `## item` (key, state, title; or `unknown — could not resolve`), `## tasks
+  names every source degraded in any of the three passes. (v3) It fills `item_state` and `task_states`.
+- CLI `iris inbound <key>`: sections `## item` (key, state, title; or `unknown — could not resolve`; (v3) the
+  state is the composer's `item_state`, printed `[open|closed|done]` or `[state unknown]`), `## tasks
   citing <key>` (`^<id>  [open|done]  <first line>`; (v2) `^<id>  [state unknown]` for an unresolved task),
   `## citations` (`<locator>  [<type>]`), `## unknown` (each degraded source name — never folded into "no
   citations"), and (v2) `## searched` (each `searched` name) and `## not searched` (each `not_covered` entry),
   both always printed. Invalid key → message on stderr, exit 2. No records and nothing unknown → (v2)
   `# no records in <searched names> cite <key>` on stderr, exit 0.
 - MCP tool `inbound(key) -> dict` with `key`, `item`, `tasks`, `citations`, `unknown`, `notes`, and (v2)
-  `searched`, `not_covered` — the same composer as the CLI (parity). Invalid key → `{"error": "..."}`.
+  `searched`, `not_covered` — the same composer as the CLI (parity). (v3) `item.state` and `tasks[].state` are
+  the composer's state values (`open|closed|done` or `"unknown"`). Invalid key → `{"error": "..."}`.
 - Telemetry: `log_request("inbound", key, nodes=<tasks+citations>, extra={"unknown": n})`, as the other verbs.
 
 ### Tech choices
@@ -263,10 +279,19 @@ resolves which of its records cite the key, tasks included). No new cross-cuttin
   docstrings of the CLI and MCP `inbound` commands — acceptance (EARS): "WHEN the docs check runs
   (tests/test_docs_check.py), it SHALL pass"; "the glossary SHALL NOT state that iris parses task text for an
   `inbound` read" — depends on: SP-T10, SP-T11
-
+- SP-T13 [v3]: item and task state in the closed vocabulary — implements Brief:J1, Brief:J5 — `compose_inbound`
+  sets `InboundContext.item_state` (`lifecycle_state(item)` or `"unknown"`; `None` when the item is unresolved)
+  and `InboundContext.task_states` (task id → state, the same way); the CLI and MCP render those values and compute none — acceptance (EARS):
+  "WHEN the item resolves with a state `lifecycle_state` recognises, the CLI SHALL print it as `[<state>]` and
+  the MCP `item.state` SHALL equal it"; "WHEN the item resolves with no role or a role outside its kind's
+  vocabulary (e.g. `opened`), the CLI SHALL print `[state unknown]` and the MCP `item.state` SHALL be
+  `"unknown"`"; "WHEN a citing task carries a role outside `open|done`, the CLI SHALL print `[state unknown]` and
+  MCP `tasks[].state` SHALL be `"unknown"`"; "the `item` record SHALL keep its other fields unchanged" —
+  persisted tests in tests/test_compose.py, tests/test_cli_commands.py and tests/test_mcp_adapter.py; doc made
+  false: the MCP `inbound` docstring (names `item.state`) — depends on: `f6-minimo` F6-T7
 ## Coverage check (every in-scope Brief item → ≥1 task)
-- J1 → SP-T1 (key) + SP-T5 (state, via the existing chain reads)
-- J2 → SP-T9 + SP-T10 (v2; SP-T2 superseded) · J3 → SP-T3 · J4 → SP-T4, SP-T5, SP-T10, SP-T11 · J5 → SP-T6, SP-T7, SP-T12
+- J1 → SP-T1 (key) + SP-T5 (state, via the existing chain reads) + SP-T13 [v3] (state vocabulary)
+- J2 → SP-T9 + SP-T10 (v2; SP-T2 superseded) · J3 → SP-T3 · J4 → SP-T4, SP-T5, SP-T10, SP-T11 · J5 → SP-T6, SP-T7, SP-T12, SP-T13 [v3]
 - C1 → Architecture (composition in the layer; within-source reads stay in the sources, v2 tasks included) ·
   C2 → SP-T3, SP-T4, SP-T9, Cross-cutting · C3 → SP-T1, SP-T9, SP-T8 (one rule on both halves, held by fixtures)
 - S1 → SP-T8 · S2 → SP-T5, SP-T8 · S3 → SP-T4, SP-T5, SP-T6, SP-T10 · S4 → SP-T8 (both halves, prefix pairs), SP-T10
