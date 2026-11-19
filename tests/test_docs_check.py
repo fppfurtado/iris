@@ -53,3 +53,12 @@ def test_docs_say_where_a_repos_tags_come_from() -> None:
     glossary = (ROOT / "docs" / "domain.md").read_text(encoding="utf-8")
     entry = glossary[glossary.index("### Repo"):glossary.index("### Resource")]
     assert "`spec.system`" in entry and "tag words of its registry entry" in entry
+
+
+def test_example_tracker_forges_keys_are_placeholders() -> None:
+    # spec-repo-issues-federation v3 SP-T9: the public example names no real host (C7); >=1 key, never vacuous.
+    config = load_config(ROOT / "sources.example.toml")
+    tracker = next(s for s in config.sources if s.type == "tracker")
+    keys = list(tracker.options["forges"])
+    assert keys, "the example must carry a parsed `forges` entry"
+    assert all(k.startswith("<") for k in keys), keys

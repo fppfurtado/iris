@@ -130,7 +130,9 @@ frozen value objects and exposes no write path to any source.
 - **Definition:** a tracker issue from a forge (gh/glab). In a `context` read only OPEN issues are
   modeled, bound to a repo by a `has-open-issue` Relation. In a `chain` read (F6-mínimo, iris#43) a
   SPECIFICALLY-REFERENCED issue is modeled regardless of state, carrying its lifecycle state
-  (`roles=["open"]` | `["closed"]`) — closed matters there (a discharged gate in a dependency chain).
+  (`roles=["open"]` | `["closed"]`) — closed matters there (a discharged gate in a dependency chain). The
+  vocabulary is closed: the tracker maps each forge's state words to `open` / `closed` (its `states` table),
+  and any other value is an unknown state, never a discharged one.
 
 ### Task
 - **Parent:** Node (`kind="task"`).
