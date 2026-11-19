@@ -30,7 +30,7 @@ from iris.core.model import Node, Relation
 from iris.core.registry import DEFAULT
 from iris.core.source import KIND_CHAIN, KIND_NODES, Query, Source, SourceResult
 from iris.sources._json import dig
-from iris.sources._repos import identity, parse_refs, repo_paths, repo_refs
+from iris.sources._repos import ambiguity_note, identity_map, parse_refs, repo_entries, repo_refs
 
 # A runner takes the forge argv and the repo checkout to run it in, and returns stdout.
 Runner = Callable[[list[str], Path], str]
@@ -73,6 +73,9 @@ class TrackerSource:
         # degrades to a note (BR04), leaving ``context`` (the list command) untouched.
         self._view: list[str] = list(opts.get("view", []))
         self._items_path: str = opts.get("items", "")
+        # ``{slug}`` in ``command`` / ``view`` is replaced by the repo's forge slug ``<host>/<path>`` (from
+        # its checkout, never from config), so the forge CLI reads the very repo the identity names — e.g.
+        # ``gh … -R {slug}`` or ``glab … -R https://{slug}`` — instead of choosing a remote itself.
         self._map: dict[str, str] = dict(opts.get("map", {}))
 
     def read(self, query: Query) -> SourceResult:
@@ -94,17 +97,18 @@ class TrackerSource:
             return SourceResult(ok=True)
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
         try:
-            repos = repo_paths(mrconfig)
+            identities = identity_map(repo_entries(mrconfig))
         except OSError as exc:
             return SourceResult(ok=False, note=f"cannot read mrconfig ({exc})")
-        repos = [r for r in repos if identity(r) in wanted]
+        repos = [r for r, ident in identities.by_path.items() if ident in wanted]
         nodes: list[Node] = []
         relations: list[Relation] = []
         failed = 0
         for repo in repos:
-            ident = identity(repo)
+            ident = identities.by_path[repo]
+            cmd = [arg.replace("{slug}", identities.slugs[repo]) for arg in self._command]
             try:
-                data = json.loads(self._runner(list(self._command), repo))
+                data = json.loads(self._runner(cmd, repo))
             except Exception:  # per-repo isolation: absent/unauth/timeout/bad-JSON degrades this repo
                 failed += 1
                 continue
@@ -130,12 +134,14 @@ class TrackerSource:
                     )
                 )
                 relations.append(Relation(from_=ident, type="has-open-issue", to=node_id))
-        note = ""
+        notes = []
         ok = True
         if failed:
-            note = f"{failed}/{len(repos)} repos unreadable (forge absent/unauth/timeout/unexpected-shape)"
+            notes.append(f"{failed}/{len(repos)} repos unreadable (forge absent/unauth/timeout/unexpected-shape)")
             ok = False
-        return SourceResult(nodes=nodes, relations=relations, ok=ok, note=note)
+        if wanted & identities.ambiguous:
+            notes.append(ambiguity_note(wanted & identities.ambiguous))
+        return SourceResult(nodes=nodes, relations=relations, ok=ok, note="; ".join(notes))
 
     def _read_referenced(self, query: Query) -> SourceResult:
         """Chain mode (F6-mínimo): fetch the LIVE state of each SPECIFIC ``<repo>#<n>`` the query names.
@@ -151,16 +157,22 @@ class TrackerSource:
             return SourceResult(ok=False, note="chain: no `view` command configured (BR04)")
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
         try:
-            paths = {identity(p): p for p in repo_paths(mrconfig)}
+            identities = identity_map(repo_entries(mrconfig))
         except OSError as exc:
             return SourceResult(ok=False, note=f"cannot read mrconfig ({exc})")
+        # An ambiguous name keys no entry (each is keyed by its path), so a ref to it finds none here and
+        # the composer marks it unresolved; the note says why.
+        paths = {ident: p for p, ident in identities.by_path.items()}
         nodes: list[Node] = []
         failed = 0
         for ref in refs:
             repo = paths.get(ref.slug)
             if repo is None:
                 continue  # a ref to a repo outside the registry — the composer marks it unresolved
-            cmd = [arg.replace("{number}", str(ref.number)) for arg in self._view]
+            cmd = [
+                arg.replace("{number}", str(ref.number)).replace("{slug}", identities.slugs[repo])
+                for arg in self._view
+            ]
             try:
                 data = json.loads(self._runner(cmd, repo))
             except Exception:  # per-ref isolation: absent/unauth/timeout/bad-JSON degrades this ref
@@ -179,8 +191,11 @@ class TrackerSource:
                     source=self.name,
                 )
             )
-        note = f"chain: {failed} ref(s) unreadable (forge absent/unauth/timeout)" if failed else ""
-        return SourceResult(nodes=nodes, ok=not failed, note=note)
+        notes = [f"chain: {failed} ref(s) unreadable (forge absent/unauth/timeout)"] if failed else []
+        cited_ambiguous = {ref.slug for ref in refs} & identities.ambiguous
+        if cited_ambiguous:
+            notes.append(ambiguity_note(cited_ambiguous))
+        return SourceResult(nodes=nodes, ok=not failed, note="; ".join(notes))
 
 
 def _factory(name: str, options: dict) -> Source:

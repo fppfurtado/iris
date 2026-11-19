@@ -79,16 +79,19 @@ frozen value objects and exposes no write path to any source.
 - **Relations:** drives kind-aware federation (BR07) — a source producing none of a query's kinds is skipped.
 
 ### Identity
-- **Definition:** the key by which an entity is matched ACROSS sources for a Composition. For the `context`
-  and `chain` joins, a repo's checkout basename, derived identically by every source from the shared
-  sovereign repo registry; for the membership check, a repo's forge slug `<host>/<path>` (see Member),
-  since a basename is not unique once on-disk roots and forges join the universe.
+- **Definition:** the key by which an entity is matched ACROSS sources for a Composition. For the `context`,
+  `chain` and `inbound` joins, a repo's **forge name** — the last segment of the forge slug of its `origin`
+  (or of its registry clone URL) — derived identically by every source from the shared sovereign repo
+  registry; an entry with no forge slug falls back to its checkout basename, and a name two registry entries
+  would take is ambiguous (taken by neither, reported, refs to it unresolved). It is the name the other
+  stores cite a repo by. For the membership check, a repo's full forge slug `<host>/<path>` (see Member),
+  since a name is not unique once on-disk roots and forges join the universe.
 - **Relations:** mediates cross-context joining (BR06). A *declared* cross-store identity protocol beyond the
   shared derivation is an open domain question (Brief F6).
 
 ### Repo
 - **Parent:** Node (`kind="repo"`).
-- **Definition:** a repository entity, identified by its checkout basename. Its origin is the repo registry,
+- **Definition:** a repository entity, identified by its forge name (see Identity). Its origin is the repo registry,
   or — in a universe read only — a checkout under an on-disk root or a forge org's listing. Its `tags` are
   what its descriptor declares — `metadata.tags` and the system it belongs to (`spec.system`) — followed by
   the tag words of its registry entry; the descriptor states which system a repo belongs to, the registry

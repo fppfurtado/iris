@@ -1,7 +1,7 @@
 # Spec: constellation membership & drift check — Resources, resource dependencies, explicit universe
 
 - Frozen at: 2026-10-28
-- Spec version: v1.2
+- Spec version: v1.3
 - Source: iris#48 (requirements 1–4 and its out-of-scope paragraph). The problem framing and the arrangement
   that assigns this capability to iris are upstream of this repo and private; iris#48 restates the
   requirements generically, and this Spec cites them as `Q1`–`Q4` (the issue's numbered items) plus `Q4a`–`Q4f`
@@ -31,6 +31,13 @@
   checkout manifest checked against the descriptors for MEMBERSHIP; it records no check of the registry's
   tag lines. So the two are joined, descriptor first, and neither replaces the other. No v1.1 requirement
   changes; what changes for the existing commands is stated in the Architecture consequence.
+  v1.3 (2026-11-19, iris#60; approved by the operator, "sim") — a citer rebump of Spec `spec-repo-issues-federation`
+  v2, which changes the repo join identity from the checkout basename to the forge name (basename
+  fallback). One statement here became false: the Data model's "Node ids are unchanged (the checkout
+  basename for repos)". Restated: node ids follow that Spec's identity rule, so `attrs.host` and the
+  `hosted-by` relation (the host's NODE id, v1.1) now carry the forge name — which closes iris#60's
+  `host=chezmoi` case. No requirement here changed: the check still never joins on node ids (it joins by
+  `attrs.path` and `attrs.slug`), so every drift kind and every SP-T5 fixture is unaffected.
 
 <!-- Non-normative orientation. Today the constellation source reads the mrconfig and the FIRST document
      of each catalog-info.yaml, and turns every spec.dependsOn into an untyped relation. This increment
@@ -105,9 +112,10 @@ headless read whose primary consumer is a scheduler (exit code + JSON) and secon
   - `archived` (bool, forge only).
 
   It is backward compatible, since every existing constructor call omits it. `Node` is already unhashable
-  (list fields), so a dict field changes nothing there. Node ids are unchanged (the checkout basename for
-  repos), so `repos`/`context`/`chain` see the same ids as today. Because a basename is not unique once roots
-  are scanned, **the check never joins on node ids**: it joins local repos by `attrs.path` and identities by
+  (list fields), so a dict field changes nothing there. Node ids are unchanged by this Spec: a repo's id is the
+  join identity of Spec `spec-repo-issues-federation` — the checkout basename until its v2, the forge name
+  (basename fallback) since [v1.3] — so `repos`/`context`/`chain` see the ids that rule gives. Because neither
+  is unique once roots are scanned, **the check never joins on node ids**: it joins local repos by `attrs.path` and identities by
   `attrs.slug`. A local repo node therefore also carries `depends_on` (list of raw `dependsOn` refs).
 - **Repo tags** [v1.2] — a repo node's `tags` are, in this order and without duplicates:
   1. its descriptor Component's `metadata.tags`;

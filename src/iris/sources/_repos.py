@@ -1,9 +1,12 @@
 """Shared repo discovery from an ``mr`` manifest (``~/.mrconfig``).
 
 Both the constellation source (repo nodes) and the tracker source (issues per repo) derive their repo
-set — and each repo's join **identity** — from the SAME sovereign registry by the SAME rule (the
-checkout basename). Factoring it here makes the cross-source join key genuinely *shared*, not two
-coincidentally-aligned derivations (Brief F6: identity is derived, not matched by luck).
+set — and each repo's join **identity** — from the SAME sovereign registry by the SAME rule
+(``identity_map``): the repo's forge name, the last segment of the forge slug of its ``origin`` (or of the
+clone URL in its ``checkout =`` command), falling back to the checkout basename when there is no slug. A
+name two registry entries would share is ambiguous and taken by neither. Factoring it here makes the
+cross-source join key genuinely *shared*, not two coincidentally-aligned derivations (Brief F6: identity
+is derived, not matched by luck).
 """
 
 from __future__ import annotations
@@ -18,8 +21,8 @@ _NON_REPO_SECTIONS = {"DEFAULT", "ALIAS"}
 
 # A ``<repo>#<number>`` reference inside free text — the cross-source join carrier AND the query-scoping
 # key. The slug must sit immediately before ``#`` (so a spaced "PR #32" or a bare "## heading" never
-# matches) and be a repo-name-like token: LOWERCASE-led, matching the checkout-basename identity
-# convention every repo follows (iris, agent-kit, pje-2.1). That lowercase anchor drops the
+# matches) and be a repo-name-like token: LOWERCASE-led, matching the forge-name identity convention
+# every repo follows (iris, agent-kit, pje-2.2). That lowercase anchor drops the
 # uppercase-acronym noise ("PR#25", "P1#3", "GLPI#7") a bare letter-start would sweep in — those are
 # prose, not repos. Whether a surviving slug is a REAL repo is the caller's resolution, not this
 # extraction's (the composer resolves identity for tasks; the tracker matches it against the registry).
@@ -102,11 +105,6 @@ def parse_key(key: str) -> Ref | None:
     return None
 
 
-def repo_paths(mrconfig: Path) -> list[Path]:
-    """Parse ``mrconfig`` section headers into absolute repo paths."""
-    return [path for path, _ in repo_entries(mrconfig)]
-
-
 def repo_entries(mrconfig: Path) -> list[tuple[Path, str]]:
     """Each ``mrconfig`` repo section as ``(path, checkout command)`` — the command is ``""`` when absent."""
     text = mrconfig.read_text(encoding="utf-8")
@@ -149,9 +147,53 @@ def _repo_sections(text: str) -> list[tuple[Path, int, int]]:
     return sections
 
 
-def identity(path: Path) -> str:
-    """The repo's cross-source join identity — its checkout basename."""
-    return path.name
+def forge_name(slug: str) -> str | None:
+    """The repo name a forge slug ``<host>/<path>`` ends in — ``None`` for a ``local:`` slug."""
+    if not slug or slug.startswith("local:"):
+        return None
+    return slug.rsplit("/", 1)[-1] or None
+
+
+def identity(path: Path, checkout: str = "") -> str:
+    """One checkout's join identity on its own: its forge name, else its checkout basename.
+
+    Used for a repo found outside the registry (an on-disk root); a registry entry takes its identity from
+    ``identity_map``, which also resolves names two entries would share."""
+    return forge_name(local_slug(path, checkout)) or path.name
+
+
+@dataclass(frozen=True)
+class Identities:
+    """The registry's join identities: ``by_path`` maps each entry to its identity, ``ambiguous`` lists the
+    names two or more entries would take (such an entry is keyed by its registry path instead)."""
+
+    by_path: dict[Path, str]
+    slugs: dict[Path, str]
+    ambiguous: frozenset[str]
+
+
+def identity_map(entries: list[tuple[Path, str]]) -> Identities:
+    """The join identity of every registry entry ``(path, checkout command)``.
+
+    Each entry's candidate is its forge name (``identity``). A candidate two or more entries share — forge
+    name against forge name, or a fallback basename against another entry's forge name — is ambiguous:
+    none of them takes it, each is keyed by its registry path (unique, and matched by no ``<repo>#<n>``
+    ref), and callers report the name rather than resolve it to one entry (BR06)."""
+    slugs = {path: local_slug(path, checkout) for path, checkout in entries}
+    candidates = {path: forge_name(slugs[path]) or path.name for path, _ in entries}
+    counts: dict[str, int] = {}
+    for name in candidates.values():
+        counts[name] = counts.get(name, 0) + 1
+    ambiguous = frozenset(name for name, n in counts.items() if n > 1)
+    by_path = {path: (str(path) if name in ambiguous else name) for path, name in candidates.items()}
+    return Identities(by_path=by_path, slugs=slugs, ambiguous=ambiguous)
+
+
+def ambiguity_note(ambiguous: frozenset[str] | set[str]) -> str:
+    """The note naming ambiguous identities — the same text from every source that meets one."""
+    if not ambiguous:
+        return ""
+    return "ambiguous identity (two or more registry entries): " + ", ".join(sorted(ambiguous))
 
 
 # Clone-URL forms a remote can take: scp-style ``[user@]host:path``, and ``scheme://[user@]host[:port]/path``.

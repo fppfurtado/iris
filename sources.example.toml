@@ -52,6 +52,12 @@ command = ["gh", "issue", "list", "--state", "open", "--json", "number,title"]  
 # (open/closed), so a dependency chain can show a discharged (closed) gate. `{number}` is substituted
 # per ref. Omit to leave `chain` disabled for this source (context is unaffected).
 # view = ["gh", "issue", "view", "{number}", "--json", "number,title,state"]  # glab: "issue view"
+# `{slug}` in `command` or `view` is replaced by the repo's forge slug `<host>/<path>`, read from its own
+# checkout (never from this file), so the CLI reads the very repo the identity names instead of choosing a
+# remote itself — useful in a checkout with several remotes: gh `-R {slug}`, glab `-R https://{slug}`.
+# A repo's identity is its forge name (the slug's last segment), else its checkout directory name.
+# The slug's host is the remote's host as written: an ssh host alias (`myalias:owner/repo`) is passed as is,
+# so write the real host in `origin`, or the CLI fails for that repo (reported as a degraded read).
 # items = ""                                            # dotted path to the list ("" = the top-level array)
 [sources.tracker.map]
 number = "number"                                      # issue number field (glab: "iid")

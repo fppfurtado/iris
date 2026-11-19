@@ -62,7 +62,7 @@ not a registry inconsistency, just a pointer to a repo you don't track locally.
 
 - **Does 1 call beating N calls clear the publish/hold bar?** That is the `^dogfd1` earn-or-retire verdict
   (Brief N2) — this datum feeds it; it does not settle it.
-- **Identity beyond the shared basename (Brief F6).** The join keys on the basename both sources derive
-  from the same repo registry. An identity-miss (a tracker issue whose repo has no registry node) is
+- **Identity beyond the shared derivation (Brief F6).** The join keys on the forge name both sources derive
+  from the same repo registry (the checkout basename until Spec `spec-repo-issues-federation` v2). An identity-miss (a tracker issue whose repo has no registry node) is
   surfaced under `## unmatched issues`, not swallowed — the signal that would escalate F6 to a declared
   cross-store identity protocol.
