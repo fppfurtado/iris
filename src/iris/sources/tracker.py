@@ -1,9 +1,16 @@
 """``tracker`` source — open issues per repo from a forge CLI (gh/glab), keyed to repos by identity.
 
-Source-agnostic by construction (Brief C7): the config declares WHICH forge CLI to run and how to map
-its JSON — never an org, host, or instance. Issues are resolved by running the forge CLI with ``cwd``
-set to each repo's local checkout, so the forge coordinates (owner/host/token) live only in the
+Source-agnostic by construction (Brief C7): the adapter names no org, host or instance. The config declares
+WHICH forge CLI to run and how to map its JSON, and — for a registry that spans several forges — which CLI
+serves which host (``forges."<host>"``, written only in the private config). Issues are resolved by running the
+forge CLI with ``cwd`` set to each repo's local checkout (or ``{slug}``), so owner and token live only in the
 checkout's own git remote, never in iris.
+
+Forge per host (spec-repo-issues-federation v3, SP-T8): a ``forges`` entry whose key equals a repo's slug host
+overrides the top-level ``command`` / ``view`` / ``items`` / ``map`` / ``states`` key by key (``map`` and
+``states`` merge). A repo with no command for the read's mode is UNSERVED: counted unreadable with a note naming
+its host, never skipped silently. The issue state read by ``view`` maps through ``states`` (raw lowercased →
+canonical ``open`` / ``closed``, over the identity); an unmapped value carries no state (UNKNOWN downstream).
 
 Scoped by the query, not the registry (iris#36): the fan-out is restricted to the repos the query
 NAMES as ``<repo>#<n>`` — so ``context "mexer em iris#29"`` spawns the forge CLI only in ``iris``, and a
@@ -37,6 +44,32 @@ Runner = Callable[[list[str], Path], str]
 
 _DEFAULT_TIMEOUT = 30.0
 
+# The canonical issue states a ``states`` table maps to; the identity on them always applies beneath it.
+_CANONICAL_STATES = ("open", "closed")
+_LOCAL_HOST = "no forge host"
+_KEYS = ("command", "view", "items", "map", "states")
+# The shape each `forges` key must have; an entry with another shape is a config error, not a read-time crash.
+_SHAPES = {"command": list, "view": list, "items": str, "map": dict, "states": dict}
+
+
+def _states_table(raw, where: str, errors: list[str]) -> dict[str, str]:
+    """A ``states`` table lowercased on load; a target outside the canonical states is a config error."""
+    table: dict[str, str] = {}
+    for key, target in (raw or {}).items():
+        value = str(target).lower()
+        if value not in _CANONICAL_STATES:
+            errors.append(f"config: {where}states.{key} -> {target!r} is not open/closed (ignored)")
+            continue
+        table[str(key).lower()] = value
+    return table
+
+
+def _host_of(slug: str) -> str | None:
+    """The host of a forge slug ``<host>/<path>`` — ``None`` for a ``local:`` slug."""
+    if not slug or slug.startswith("local:"):
+        return None
+    return slug.split("/", 1)[0]
+
 
 def _make_default_runner(timeout: float) -> Runner:
     """A runner that enforces a timeout and runs in the repo checkout — a hung/failing forge CLI
@@ -66,17 +99,58 @@ class TrackerSource:
         self._timeout = float(opts.get("timeout", _DEFAULT_TIMEOUT))
         self._runner = runner if runner is not None else _make_default_runner(self._timeout)
         self._mrconfig = opts.get("mrconfig", "~/.mrconfig")
-        self._command: list[str] = list(opts.get("command", []))
-        # The per-issue VIEW command (F6-mínimo chain mode): fetches ONE issue by number incl. its
-        # state (open/closed), source-agnostic via `{number}` substitution — e.g.
-        # ["gh", "issue", "view", "{number}", "--json", "number,title,state"]. Absent → chain mode
-        # degrades to a note (BR04), leaving ``context`` (the list command) untouched.
-        self._view: list[str] = list(opts.get("view", []))
-        self._items_path: str = opts.get("items", "")
-        # ``{slug}`` in ``command`` / ``view`` is replaced by the repo's forge slug ``<host>/<path>`` (from
-        # its checkout, never from config), so the forge CLI reads the very repo the identity names — e.g.
-        # ``gh … -R {slug}`` or ``glab … -R https://{slug}`` — instead of choosing a remote itself.
-        self._map: dict[str, str] = dict(opts.get("map", {}))
+        # Config errors are found here and reported on every read that names a `<repo>#<n>` ref (SP-T8 d).
+        self._config_errors: list[str] = []
+        # The top-level settings. `command` lists a repo's open issues (context); `view` fetches ONE issue by
+        # number incl. its state (chain), via `{number}` — e.g. ["gh", "issue", "view", "{number}", "--json",
+        # "number,title,state"]. A repo whose host has no `view` (here or in its `forges` entry) is unserved
+        # in chain mode, per ref (BR04), leaving ``context`` untouched. ``{slug}`` in either is replaced by
+        # the repo's forge slug ``<host>/<path>`` (from its checkout, never from config), so the CLI reads
+        # the very repo the identity names — ``gh … -R {slug}`` or ``glab … -R https://{slug}``.
+        self._top: dict = {
+            "command": list(opts.get("command", [])),
+            "view": list(opts.get("view", [])),
+            "items": opts.get("items", ""),
+            "map": dict(opts.get("map", {})),
+            "states": _states_table(opts.get("states"), "", self._config_errors),
+        }
+        # The top-level command and map by their v2 names (the S2 proof reads them: no forge baked in).
+        self._command: list[str] = self._top["command"]
+        self._map: dict[str, str] = self._top["map"]
+        self._forges: dict[str, dict] = {}
+        for key, entry in (opts.get("forges") or {}).items():
+            host = str(key).lower().split(":", 1)[0]
+            if not isinstance(entry, dict) or not ("command" in entry or "view" in entry):
+                self._config_errors.append(f"config: forges.{key} carries no command or view (ignored)")
+                continue
+            bad = [k for k, kind in _SHAPES.items() if k in entry and not isinstance(entry[k], kind)]
+            if bad:
+                self._config_errors.append(f"config: forges.{key} has a malformed {', '.join(bad)} (ignored)")
+                continue
+            if host in self._forges:
+                self._config_errors.append(f"config: forges.{key} duplicates host {host!r} (ignored)")
+                continue
+            self._forges[host] = {
+                k: (_states_table(entry[k], f"forges.{key}.", self._config_errors) if k == "states" else entry[k])
+                for k in _KEYS
+                if k in entry
+            }
+
+    def _settings(self, slug: str) -> dict:
+        """The settings for one repo: its host's `forges` entry over the top level, key by key."""
+        host = _host_of(slug)
+        entry = self._forges.get(host, {}) if host else {}
+        merged = {k: entry.get(k, self._top[k]) for k in ("command", "view", "items")}
+        merged["map"] = {**self._top["map"], **dict(entry.get("map", {}))}
+        merged["states"] = {
+            **{v: v for v in _CANONICAL_STATES},
+            **self._top["states"],
+            **entry.get("states", {}),
+        }
+        return merged
+
+    def _config_notes(self) -> list[str]:
+        return list(self._config_errors)
 
     def read(self, query: Query) -> SourceResult:
         # Kind-aware mode split (BR07): a ``chain`` query wants the LIVE state of the SPECIFIC issues an
@@ -104,15 +178,24 @@ class TrackerSource:
         nodes: list[Node] = []
         relations: list[Relation] = []
         failed = 0
+        unserved: dict[str, int] = {}
         for repo in repos:
             ident = identities.by_path[repo]
-            cmd = [arg.replace("{slug}", identities.slugs[repo]) for arg in self._command]
+            slug = identities.slugs[repo]
+            settings = self._settings(slug)
+            if not settings["command"]:
+                host = _host_of(slug) or _LOCAL_HOST
+                unserved[host] = unserved.get(host, 0) + 1
+                continue
+            cmd = [arg.replace("{slug}", slug) for arg in settings["command"]]
             try:
                 data = json.loads(self._runner(cmd, repo))
             except Exception:  # per-repo isolation: absent/unauth/timeout/bad-JSON degrades this repo
                 failed += 1
                 continue
-            items = dig(data, self._items_path) if self._items_path else data
+            items_path = settings["items"]
+            items = dig(data, items_path) if items_path else data
+            fields = settings["map"]
             if not isinstance(items, list):
                 # unexpected shape (e.g. a wrapped object with `items` mis-configured): degrade this
                 # repo rather than iterate a dict's keys into malformed `#None` nodes.
@@ -121,7 +204,7 @@ class TrackerSource:
             for item in items:
                 if not isinstance(item, dict):
                     continue
-                number = dig(item, self._map.get("number", "number"))
+                number = dig(item, fields.get("number", "number"))
                 if number is None:
                     continue  # an issue without an identifiable number cannot key a stable node
                 node_id = f"{ident}#{number}"
@@ -129,15 +212,18 @@ class TrackerSource:
                     Node(
                         id=node_id,
                         kind="issue",
-                        title=str(dig(item, self._map.get("title", "title")) or ""),
+                        title=str(dig(item, fields.get("title", "title")) or ""),
                         source=self.name,
                     )
                 )
                 relations.append(Relation(from_=ident, type="has-open-issue", to=node_id))
-        notes = []
-        ok = True
+        notes = self._config_notes()
+        ok = not notes
         if failed:
             notes.append(f"{failed}/{len(repos)} repos unreadable (forge absent/unauth/timeout/unexpected-shape)")
+            ok = False
+        for host, count in unserved.items():
+            notes.append(f"{count} repo(s) unserved ({host}): no `command` for this host")
             ok = False
         if wanted & identities.ambiguous:
             notes.append(ambiguity_note(wanted & identities.ambiguous))
@@ -153,8 +239,6 @@ class TrackerSource:
         refs = [r for r in parse_refs(query.text) if r.kind == "issue"]
         if not refs:
             return SourceResult(ok=True)
-        if not self._view:
-            return SourceResult(ok=False, note="chain: no `view` command configured (BR04)")
         mrconfig = Path(os.path.realpath(os.path.expanduser(self._mrconfig)))
         try:
             identities = identity_map(repo_entries(mrconfig))
@@ -165,14 +249,19 @@ class TrackerSource:
         paths = {ident: p for p, ident in identities.by_path.items()}
         nodes: list[Node] = []
         failed = 0
+        unserved: dict[str, int] = {}
+        unmapped: dict[str, int] = {}
         for ref in refs:
             repo = paths.get(ref.slug)
             if repo is None:
                 continue  # a ref to a repo outside the registry — the composer marks it unresolved
-            cmd = [
-                arg.replace("{number}", str(ref.number)).replace("{slug}", identities.slugs[repo])
-                for arg in self._view
-            ]
+            slug = identities.slugs[repo]
+            settings = self._settings(slug)
+            if not settings["view"]:
+                host = _host_of(slug) or _LOCAL_HOST
+                unserved[host] = unserved.get(host, 0) + 1
+                continue
+            cmd = [arg.replace("{number}", str(ref.number)).replace("{slug}", slug) for arg in settings["view"]]
             try:
                 data = json.loads(self._runner(cmd, repo))
             except Exception:  # per-ref isolation: absent/unauth/timeout/bad-JSON degrades this ref
@@ -181,21 +270,34 @@ class TrackerSource:
             if not isinstance(data, dict):
                 failed += 1
                 continue
-            state = str(dig(data, self._map.get("state", "state")) or "").lower()
+            fields = settings["map"]
+            raw = dig(data, fields.get("state", "state"))
+            state = None
+            if raw:  # a falsy state (absent, null, "", false, 0) is MISSING: no role and no note
+                state = settings["states"].get(str(raw).lower())
+                if state is None:
+                    unmapped[str(raw)] = unmapped.get(str(raw), 0) + 1
             nodes.append(
                 Node(
                     id=f"{ref.slug}#{ref.number}",
                     kind="issue",
-                    title=str(dig(data, self._map.get("title", "title")) or ""),
+                    title=str(dig(data, fields.get("title", "title")) or ""),
                     roles=[state] if state else [],
                     source=self.name,
                 )
             )
-        notes = [f"chain: {failed} ref(s) unreadable (forge absent/unauth/timeout)"] if failed else []
+        notes = self._config_notes()
+        if failed:
+            notes.append(f"chain: {failed} ref(s) unreadable (forge absent/unauth/timeout)")
+        for host, count in unserved.items():
+            notes.append(f"chain: {count} ref(s) unserved ({host}): no `view` command for this host")
+        for raw, count in unmapped.items():
+            notes.append(f"chain: state '{raw}' not mapped ({count} ref(s))")
         cited_ambiguous = {ref.slug for ref in refs} & identities.ambiguous
         if cited_ambiguous:
             notes.append(ambiguity_note(cited_ambiguous))
-        return SourceResult(nodes=nodes, ok=not failed, note="; ".join(notes))
+        ok = not (failed or unserved or self._config_errors)
+        return SourceResult(nodes=nodes, ok=ok, note="; ".join(notes))
 
 
 def _factory(name: str, options: dict) -> Source:

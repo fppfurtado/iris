@@ -218,3 +218,51 @@ def test_mcp_repos_tag_filter_matches_a_system_name_and_a_registry_word(tmp_path
 
     _, by_word = asyncio.run(_connect_and_call("word-second"))
     assert [r["id"] for r in by_word] == ["second"]
+
+
+# --- item-inbound-context v3 SP-T13 (iris#81): item and task state in the closed vocabulary ---
+
+
+def test_inbound_states_in_the_closed_vocabulary_cli_and_mcp(monkeypatch):
+    item = Node(id="iris#34", kind="issue", title="gitlab item", roles=["opened"], source="tracker")
+    odd_task = Node(id="8g58ft", kind="task", title="a task\nmore", roles=["closed"], source="gtd")
+    state = FederationResult(nodes=[item])
+    citing = FederationResult(nodes=[_TASK, _CITE])
+    task_state = FederationResult(nodes=[odd_task])
+    _canned(monkeypatch, mcp_adapter, state, citing, task_state)
+    _canned(monkeypatch, cli, state, citing, task_state)
+
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert data["item"]["state"] == "unknown" and data["item"]["roles"] == ["opened"]
+    assert [t["state"] for t in data["tasks"]] == ["unknown"]
+    out = CliRunner().invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "iris#34  [state unknown]  gitlab item" in out
+    assert "^8g58ft  [state unknown]  a task" in out
+
+
+def test_inbound_recognised_states_render_as_themselves(monkeypatch):
+    state = FederationResult(nodes=[_ITEM])
+    citing = FederationResult(nodes=[_TASK, _CITE])
+    _canned(monkeypatch, mcp_adapter, state, citing, FederationResult(nodes=[_TASK_STATE]))
+    _canned(monkeypatch, cli, state, citing, FederationResult(nodes=[_TASK_STATE]))
+    data = asyncio.run(_call_inbound("iris#34"))
+    assert data["item"]["state"] == "open"
+    assert [t["state"] for t in data["tasks"]] == ["open"]
+    out = CliRunner().invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "iris#34  [open]  database as a source" in out
+    assert "^8g58ft  [open]  chase iris#34 in a TJPA session" in out
+
+
+def test_inbound_unresolved_task_keeps_the_v2_line(monkeypatch):
+    _canned(monkeypatch, cli, FederationResult(nodes=[_ITEM]), FederationResult(nodes=[_TASK]), FederationResult())
+    out = CliRunner().invoke(cli.app, ["inbound", "iris#34"]).stdout
+    assert "^8g58ft  [state unknown]\n" in out
+
+
+def test_inbound_tracker_config_error_holds_back_no_records(monkeypatch):
+    # a tracker degraded by a config error is unknown, so "no records cite" is never printed
+    _canned(monkeypatch, cli, FederationResult(degraded=["tracker"], notes=["tracker: config: forges.x"]),
+            FederationResult())
+    result = CliRunner().invoke(cli.app, ["inbound", "iris#34"])
+    assert "no records in" not in result.output
+    assert "## unknown\ntracker" in result.stdout

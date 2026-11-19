@@ -1,11 +1,21 @@
 # Spec: F6-mínimo — resolvedor de cadeia de dependências cross-repo por ref-em-prosa
 
-- Frozen at: 2026-09-09
-- Spec version: v1
+- Frozen at: 2026-09-09 (v1) · 2026-11-19 (v1.1)
+- Spec version: v1.1
 - Source: Problem Brief `briefs/f6-minimo-cross-repo-dep-chain.BRIEF.md` v1 (frozen 2026-09-09) — PRD skipped
   (feature dentro de produto existente; Vision/PRD dispensados, SP* citam Brief J*/S* direto)
-- Status: frozen after approval on 2026-09-09 (operador "Congelar + build agora")
-- Amendments: none
+- Status: frozen after approval on 2026-09-09 (operador "Congelar + build agora"); v1.1 congelada em
+  2026-11-19 — the operator delegated the freeze call ("delego", 2026-11-19, to "run one more read, or freeze now?"); frozen after a third delta read (0 High, 2 Medium, 4 Low) whose fold only pins the ref kind, removes a claim that failed twice, and records consequences — that fold is unread
+- Amendments: **v1.1 (2026-11-19, iris#81).** O vocabulário de estado passa a ser fechado e POR KIND: uma issue
+  é candidata-a-bloqueador só com role `open` e descarregada só com `closed`; uma task, `open` / `done`; qualquer
+  outro valor (ou nenhum) é `state_unknown` — antes, todo role não-`open` contava como descarregado. Porquê: o glab devolve
+  `state: "opened"` (sondado em 2026-11-19), que virava role `opened` e saía como "não bloqueia" com a issue
+  ABERTA — resposta errada e silenciosa. A R1 afirmava "se glab divergir, é config, não código"; era falsa para
+  VALORES (o `map` remapeia caminhos de campo, não valores). A normalização na fonte é
+  `spec-repo-issues-federation` v3 SP-T8 (`states`); esta emenda é a guarda do lado do composer, para qualquer
+  fonte futura ou config errada. Changed: Interfaces (`lifecycle_state`; telemetria do `chain`); Risks R1;
+  Domain reconciliation. Added: F6-T7 [v1.1]. Leituras cegas sobre os três rascunhos da iris#81 (pré-freeze: 0
+  High, 4 Medium, 9 Low; delta: 0 High, 2 Medium, 5 Low); os achados deste Spec dispostos no texto.
 
 ## Design
 
@@ -44,6 +54,8 @@ tasks lookup) → federate → compose_referenced_nodes → blocker-view (CLI/MC
 - `parse_refs(text) -> list[Ref]` onde `Ref` = `(kind: "issue"|"anchor", slug|None, number|anchor)`.
   Estende o regex existente `_REPO_REF` p/ **capturar o número**; adiciona `_ANCHOR_REF` p/ `\^[a-z0-9]+`.
 - `compose_referenced_nodes(item_text, result: FederationResult) -> ReferencedChain`. Puro, read-only.
+- [v1.1] `lifecycle_state(node) -> str | None` (F6-T7): o estado de lifecycle no vocabulário fechado do kind.
+  Telemetria do `chain` (CLI e MCP): `extra` ganha a chave `state_unknown` (contagem).
 - CLI: `iris chain "<item-text-or-ref>"`; MCP: tool `chain` em paridade (mesma composição + apresentação).
 
 ### Cross-cutting
@@ -102,12 +114,29 @@ tasks lookup) → federate → compose_referenced_nodes → blocker-view (CLI/MC
   `iris-dogfood-publish-hold-decision-state` §VEREDITO + task `^dogfd1`) SHALL carregar a qualificação S3:
   um EARN com n=2–3 selecionado lê-se como "ganha no caso maximamente cross-fonte", NÃO "ganha
   tipicamente".** — depends on: F6-T5
+- F6-T7 [v1.1]: **Vocabulário de estado fechado, por kind.** `lifecycle_state(node) -> str | None` em
+  `core/compose.py`: issue → `open` | `closed`, task → `open` | `done`, a partir dos `roles` lowercased (como o
+  `_is_open` da v1); com vários roles, `open` vence se presente, senão o valor descarregado do kind se presente;
+  qualquer outro valor, outro kind ou nenhum role → `None`. Em `compose_referenced_nodes`, `open` → candidato-a-bloqueador; `closed` /
+  `done` → descarregado; `None` → `state_unknown`. O `inbound` reusa a mesma função (`item-inbound-context` v3).
+  A telemetria do `chain` (CLI e MCP) passa a contar `state_unknown` ao lado de `blocker_candidates` e
+  `unresolved`, na chave `state_unknown`. — serves Brief:J3,J4 — acceptance (EARS): "WHEN uma issue resolvida tem `roles=['opened']` ou
+  `['done']`, ou uma task tem `['closed']`, the SYSTEM SHALL pô-la em `state_unknown` e NÃO em
+  `blocker_candidates`, e a saída NÃO SHALL afirmar que nada bloqueia"; "WHEN uma issue tem `['open']` /
+  `['closed']` ou uma task `['open']` / `['done']`, the SYSTEM SHALL comportar-se como v1"; "the `chain`
+  telemetry SHALL carry the `state_unknown` count, CLI and MCP" — deliverable: testes persistidos em
+  `tests/test_compose.py` (classificação), `tests/test_cli_chain.py` (a saída não afirma que nada bloqueia) e
+  `tests/test_mcp_adapter.py` + `tests/test_cli_chain.py` (a chave de telemetria);
+  docs feitos falsos: a docstring de `ReferencedChain.state_unknown` ("empty roles") e a entrada
+  **ReferencedChain** de `docs/domain.md` ("undetermined" → sem estado reconhecido no vocabulário do kind) e a
+  entrada **Task** (o vocabulário open|done é fechado; outro valor = desconhecido); a entrada Issue é de
+  `spec-repo-issues-federation` v3 SP-T9 — depends on: F6-T4
 
 ## Coverage check (every in-scope Brief J*/S* -> ≥1 task)
 - Brief:J1 -> F6-T1
 - Brief:J2 -> F6-T2, F6-T3
-- Brief:J3 -> F6-T2, F6-T3
-- Brief:J4 -> F6-T4, F6-T5
+- Brief:J3 -> F6-T2, F6-T3, F6-T7 [v1.1]
+- Brief:J4 -> F6-T4, F6-T5, F6-T7 [v1.1]
 - Brief:J5 -> F6-T6
 - Brief:S1, S2, S3 -> F6-T6 (o trial verifica S1/S2; S3 = a qualificação obrigatória do veredito registrado)
 - (nenhuma task sem J*/S* = sem scope creep)
@@ -124,6 +153,9 @@ tasks lookup) → federate → compose_referenced_nodes → blocker-view (CLI/MC
 - R1: o fetch específico por número (incl. closed) depende do CLI de forge suportar `issue view N --json
   state` uniformemente (gh sim; glab a confirmar). Mitigação: F6-T2 injeta runner; o mapeamento JSON é
   config (BR02) — se glab divergir, é config, não código. Confirmar no trial (itens são gh hoje).
+  [v1.1] Confirmado em 2026-11-19: o glab diverge no VALOR (`opened`), não só no campo, e o `map` não cobre
+  valor. Resolvido por config na fonte (`states`, `spec-repo-issues-federation` v3 SP-T8) mais a guarda de
+  vocabulário no composer (F6-T7): um valor que nenhuma das duas reconhece sai UNKNOWN, nunca descarregado.
 - R2: a fatia cross-fonte pode ser fina nos itens reais (invalidator do Brief) — é PRECISAMENTE o que
   F6-T6 mede; um resultado retire-adjacent é veredito válido, não falha de build.
 
@@ -146,3 +178,6 @@ Este Spec MUDA o domain.md (contrato durável), não só o distila. As mudanças
 Issue/Task ganham estado de lifecycle em `roles` (open|closed / open|done) QUANDO referidos
 especificamente; nova relação `references`; nova composição `item ⋈ referenced-nodes`. Registrado aqui p/
 o freeze não passar silencioso sobre "Only OPEN modeled". A atualização do domain.md acontece no build.
+[v1.1] O vocabulário é FECHADO e por kind: open|closed (issue), open|done (task); um valor fora do vocabulário
+do kind é estado desconhecido, nunca descarregado. Deliverable de F6-T7: `docs/domain.md` ReferencedChain e Task
+(a entrada Issue fica com `spec-repo-issues-federation` v3 SP-T9).

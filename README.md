@@ -140,7 +140,8 @@ are shown as **UNKNOWN**, never folded into "clear":
 ```
 
 `chain` needs the `tracker` source to declare a per-issue `view` command (fetching one issue by number
-incl. its state) and, to resolve *done* anchors, the `tasks` source to declare a `done_command` — see
+incl. its state) — at the top level or, for a registry that spans several forges, per host in a
+`forges."<host>"` entry (with a `states` map when the forge's state words differ, e.g. glab's `opened`) — and, to resolve *done* anchors, the `tasks` source to declare a `done_command` — see
 [`sources.example.toml`](sources.example.toml).
 
 `inbound` is the reverse of `chain`: given ONE item key, it shows the item's live state and the records a

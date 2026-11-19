@@ -258,3 +258,57 @@ def test_inbound_always_carries_searched_and_the_fixed_not_covered():
     assert ctx.searched == ["notes"]
     assert ctx.not_covered == list(NOT_COVERED) and len(NOT_COVERED) == 2
     assert compose_inbound("iris#34", FederationResult(), FederationResult()).searched == []
+
+
+# --- f6-minimo v1.1 F6-T7: closed lifecycle vocabulary, per kind (iris#81) ---
+
+from iris.core.compose import lifecycle_state  # noqa: E402
+
+
+def test_out_of_vocabulary_state_is_unknown_never_discharged():
+    # glab's `opened` (and an issue `done`, a task `closed`) is outside its kind's vocabulary: UNKNOWN.
+    result = FederationResult(
+        nodes=[
+            Node(id="pje#1", kind="issue", title="gitlab open", roles=["opened"]),
+            Node(id="pje#2", kind="issue", title="issue done?", roles=["done"]),
+            Node(id="t1", kind="task", title="task closed?", roles=["closed"]),
+        ]
+    )
+    chain = compose_referenced_nodes("pje#1 pje#2 ^t1", result)
+    assert [n.id for n in chain.state_unknown] == ["pje#1", "pje#2", "t1"]
+    assert chain.blocker_candidates == []
+
+
+def test_in_vocabulary_states_behave_as_v1():
+    chain = compose_referenced_nodes("flip gated on iris#6, ^dogfd1 and iris#5", _chain_result())
+    assert {n.id for n in chain.blocker_candidates} == {"dogfd1", "iris#5"}
+    assert chain.state_unknown == []
+
+
+def test_lifecycle_state_lowercases_and_open_wins():
+    assert lifecycle_state(Node(id="a#1", kind="issue", title="", roles=["OPEN"])) == "open"
+    assert lifecycle_state(Node(id="a#1", kind="issue", title="", roles=["closed", "open"])) == "open"
+    assert lifecycle_state(Node(id="a#1", kind="issue", title="", roles=["Closed"])) == "closed"
+    assert lifecycle_state(Node(id="t", kind="task", title="", roles=["done"])) == "done"
+    assert lifecycle_state(Node(id="t", kind="task", title="", roles=[])) is None
+    assert lifecycle_state(Node(id="r", kind="repo", title="", roles=["open"])) is None
+
+
+# --- item-inbound-context v3 SP-T13: compose_inbound computes the states once ---
+
+from iris.core.compose import compose_inbound  # noqa: E402
+
+
+def test_compose_inbound_sets_item_and_task_states():
+    item = Node(id="iris#5", kind="issue", title="x", roles=["opened"])
+    task = Node(id="t1", kind="task", title="", roles=[])
+    resolved_task = Node(id="t1", kind="task", title="t", roles=["done"])
+    ctx = compose_inbound(
+        "iris#5",
+        FederationResult(nodes=[item]),
+        FederationResult(nodes=[task]),
+        FederationResult(nodes=[resolved_task]),
+    )
+    assert ctx.item_state == "unknown"
+    assert ctx.task_states == {"t1": "done"}
+    assert compose_inbound("iris#9", FederationResult(), FederationResult()).item_state is None

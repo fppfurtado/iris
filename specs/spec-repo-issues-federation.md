@@ -1,14 +1,34 @@
 # Spec: repo ⋈ open-issues — the first cross-source composition (iris#31)
 
-- Frozen at: 2026-09-04
-- Spec version: v2
+- Frozen at: 2026-09-04 (v1) · 2026-11-19 (v2, v3)
+- Spec version: v3
 - Source: Problem Brief `costura-iris-fonte` v1 (frozen 2026-09-04) — **PRD stage skipped** (craft-call:
   bounded single-feature increment on existing federation architecture; the Brief already carries the
   requirement-level content this increment needs — job F4, constraints C6/C7, and the testable success
   criterion S3/L120 — so a PRD would only restate it). Tasks trace to Brief IDs, not `PR*`.
 - Status: frozen after approval on 2026-09-04 (operator "Congelar v1 → build"); v2 frozen after approval on
-  2026-11-19 (operator "sim")
-- Amendments: **v2 (2026-11-19, iris#60; approved by the operator, "sim" to the freeze question).** The repo join identity changes from the
+  2026-11-19 (operator "sim"); v3 frozen on 2026-11-19 — the operator delegated the freeze call ("delego", 2026-11-19, to "run one more read, or freeze now?"); frozen after a third delta read (0 High, 2 Medium, 4 Low) whose fold only pins the ref kind, removes a claim that failed twice, and records consequences — that fold is unread
+- Amendments: **v3 (2026-11-19, iris#81).** The tracker serves a registry that spans more than one forge: one
+  tracker instance carries an optional per-host table `forges."<host>"` whose keys (`command`, `view`, `items`,
+  `map`, `states`) override the top-level ones for the repos whose forge slug has that host; a repo with no
+  command for the read's mode (`command` for `context`, `view` for `chain`), from its entry or the top level, is
+  UNSERVED and counted unreadable (never skipped silently); and the issue state
+  read by `view` is normalised through a `states` value map to the canonical `open` / `closed`, an unmapped value
+  carrying no state (UNKNOWN). Why: glab returns `state: "opened"` (probed 2026-11-19 on a real GitLab issue),
+  which the old path stored as the role and the chain composer read as discharged — an OPEN issue reported as no
+  blocker, silently; and an instance that runs its CLI in every repo fails on the other forge's repos, so a mixed
+  registry marked degraded every `chain`/`inbound`/`context` read that named a repo of the other forge, even when
+  the answer was right. The v1 Risks claim
+  that "the config-driven `map` absorbs" glab differences was false for values: `map` remaps field paths, not
+  values. A host now appears in the PRIVATE `sources.toml`; Brief `costura-iris-fonte` C7 allows it ("a instância
+  concreta … vive só na config privada"), and the adapter and the public example still name none. Changed:
+  Interfaces / contracts (tracker contract; issue resolution); Tech choices (REST rejection reason; new "Forge
+  per host"); Cross-cutting (C7 proof); Risks (glab parity); Assumptions. Added: SP-T8 [v3], SP-T9 [v3]. Recommendation
+  read twice before drafting (blind-critic J3/J5/J6/J1: 1 High — a multi-instance host filter skipped an unserved
+  repo silently, which reversed that option — 7 Medium, 9 Low, all disposed in this text); draft read once
+  pre-freeze over the three iris#81 drafts (blind-critic J1/J3/J6: 0 High, 4 Medium, 9 Low), then a delta read of
+  the fixes (0 High, 2 Medium, 5 Low); this Spec's findings disposed in this text.
+  **v2 (2026-11-19, iris#60; approved by the operator, "sim" to the freeze question).** The repo join identity changes from the
   checkout basename to the repo's **forge name** (the last segment of the forge slug of its `origin`, or of its
   `checkout =` clone URL), with the basename kept only as a fallback for an entry with no slug; a name two
   registry entries would share is ambiguous (refs to it are UNKNOWN); and the tracker can pin its forge CLI to
@@ -102,16 +122,19 @@ implicit. Extend the model when a consumer validates a need for more issue field
 ### Interfaces / contracts
 
 - **`tracker` source** (`src/iris/sources/tracker.py`), registered under type `"tracker"`. Config-driven and
-  **source-agnostic** (C7): it declares the forge CLI to invoke (default `gh`, or `glab`) and nothing about
-  org/host/instance. `produces = frozenset({KIND_NODES})` (issues are nodes; a `KIND_NODES` query includes
+  **source-agnostic** (C7): the adapter names no org, host or instance; the config declares the forge CLI to
+  invoke (default `gh`, or `glab`) and, [v3] when the registry spans several forges, which CLI serves which
+  host (`forges."<host>"`, private config only — SP-T8). `produces = frozenset({KIND_NODES, KIND_CHAIN})` (issues are nodes; a `KIND_NODES` query includes
   it, a hits-only query like `ground` skips it — no wasted forge calls). Reuses the `cli_json` runner
   discipline verbatim: injected `runner` for testability, timeout, `IRIS_CALLER` env marker, and
   graceful-degrade (a failing/unauthed/absent forge for a repo → `ok=False` + note, never a raise that
   sinks the federation).
 - **Issue resolution = run the forge CLI in each checkout.** For each mrconfig repo path, the tracker runs
   e.g. `gh issue list --state open --limit N --json number,title` with `cwd=<path>` (the `backlog/tracker.py`
-  prior-art). The forge repo is resolved from the **checkout's own git remote** — so owner/host/token live
-  only in the working copy, never in iris code or `sources.toml`. This is the strongest possible C7 posture.
+  prior-art). The forge repo is resolved from the **checkout's own git remote** (or `{slug}`, v2) — so owner and
+  token live only in the working copy, never in iris code or `sources.toml`. [v3] A host may appear in the
+  private `sources.toml` only as a `forges` key that routes a repo to its CLI; it never enters adapter code or
+  the public example (C7).
 - **`compose_repo_issues(FederationResult) -> list[RepoWithIssues]`** (`src/iris/core/compose.py`): pure,
   read-only; groups issue nodes under repo nodes by identity, returns repo-ordered units each carrying its
   open issues (empty list when none). Reused by both the CLI `context` command and the MCP adapter (single
@@ -122,8 +145,27 @@ implicit. Extend the model when a consumer validates a need for more issue field
 - **gh/glab via subprocess `--json` (reuse the `cli_json` runner)** — because the forge is *a substitutable
   front over data you own* (Brief F4: the sovereign export is the record; the CLI is the live read), it needs
   no token wired into iris, and gh/glab already resolve the forge from the checkout — over a **forge REST
-  client library**, which would pull tokens/hosts into iris, name instances, and duplicate what the CLI does
+  client library**, which would pull tokens into iris, name instances in code, and duplicate what the CLI does
   (rejected: violates C7 and the sovereignty framing).
+- **[v3] Forge per host = one tracker instance with a `forges."<host>"` table** — matched by exact host; each
+  key the entry carries overrides the top-level one, and a key it omits is inherited (the per-key override of
+  git's URL-scoped config, `http.<url>.*`).
+  Weighed:
+  - over **several tracker instances, each with a `hosts` filter** — rejected: an instance that skips a repo
+    not on its host cannot tell "not mine" from "nobody's", so a repo no instance serves would vanish silently
+    (in `context` it would read as "no open issues"). Making that visible would need the instances to report
+    skipped repos and the core to cross-check them — tracker coverage logic in the core. One instance knows every
+    host it serves, so UNSERVED is local and cheaper.
+  - over **classifying "not my forge" from the CLI's stderr** — rejected: forge vocabulary in the adapter,
+    fragile across CLI versions.
+  - over **a dispatch script in the private dotfiles** — rejected: it fixes one machine, sits outside iris's
+    tests, and re-implements the list-shape mapping.
+- **[v3] Issue state = a `states` value map, raw (lowercased) → canonical** — the identity on `open` / `closed`
+  always applies beneath a supplied table, and any other value maps to no state (UNKNOWN). Weighed:
+  - over **an `open_states` list** — equal cost, and with the composer's vocabulary guard (`f6-minimo` v1.1 F6-T7) both
+    fail loud on an unknown value. The map is chosen on a tie-break: it can also name a closed synonym, which a
+    list of open values cannot; no forge today returns one (gh `OPEN`/`CLOSED`, glab `opened`/`closed`).
+  - over **normalising `opened` in the composer** — rejected: forge vocabulary in the core (BR01/BR02).
 - **Repo identity [v2] = the repo's forge name — the last path segment of the forge slug
   (`_repos.forge_slug`) of the checkout's `origin` remote, or, when the checkout is absent, of the clone URL in
   its registry `checkout =` command — derived identically by every source from the shared registry
@@ -155,7 +197,9 @@ implicit. Extend the model when a consumer validates a need for more issue field
 - **Read-only:** the tracker exposes no write path; extend the read-only guard test (`test_readonly_guard.py`)
   to cover it.
 - **C7 / S2 proof:** extend `test_s2_proof.py` so the tracker adapter is asserted to name no org/host/instance
-  (the source-agnostic invariant is a *test*, per S2).
+  (the source-agnostic invariant is a *test*, per S2). [v3] `test_docs_check.py` also asserts that every
+  tracker `forges` key in `sources.example.toml` is a placeholder (`<…>`), the precedent it already holds for
+  `forge-repos` and `check.exclude`.
 - **Telemetry:** `context` already calls `log_request`; the composed path keeps that unchanged.
 
 ## Task plan
@@ -240,13 +284,77 @@ implicit. Extend the model when a consumer validates a need for more issue field
   README wherever it states the identity rule. Acceptance: "no statement in `docs/`, `README.md` or `src/iris/`
   SHALL name the checkout basename as the join identity of `context`/`chain`/`inbound` except as the fallback"
   (statements that a basename is not unique, e.g. `core/membership.py`, stay). — depends on: SP-T6
+- **SP-T8 [v3]: forge per host + state values.** In `src/iris/sources/tracker.py`: (a) read an optional
+  `forges` table; each key is a host, lowercased on load and matched exactly against the host of the repo's forge
+  slug as `forge_slug` normalises it (lowercased, port stripped); two keys equal after lowercasing → the later is
+  ignored with a note naming it. An ssh alias stays as written in the slug: keying the alias routes the repo, but
+  a CLI given `-R https://{slug}` still cannot reach an alias host, so the remote must carry the real host (as the
+  example already says). (b) Per repo, resolve each of `command`, `view`, `items`, `map`, `states` from the
+  matching entry, else from the top level; `map` and `states` merge per key over the top level; a `local:` slug
+  (no host) uses the top level. (c) UNSERVED, per mode: in `context` a repo with no resolved `command`; in `chain`
+  a ref whose repo has no resolved `view`. It is kept OUT of the generic unreadable count (whose reason text
+  names forge failures), sets `ok=False`, and adds ONE note per host (all `local:` slugs together count as one,
+  `no forge host`) giving how many repos or refs it covers, naming the host, and carrying "no `view` command" (chain, the v2 wording) / "no
+  `command`" (context, new); the whole-source return ("chain: no `view` command configured (BR04)", `tracker.py`) becomes this per-ref rule. (d) A
+  `forges` value that is not a table carrying `command` or `view` (e.g. an unquoted host key that TOML nested) is
+  a config error: the entry is ignored. Config errors (here, the duplicate key in (a), and the bad `states`
+  target in (e)) are found when the source is built and reported on every read that names ≥1 `<repo>#<n>` ref
+  (an anchor-only or ref-less read spawns nothing and stays `ok=True`, as today): a note naming each key, and
+  `ok=False`, so the tracker lands in `degraded` and a broken config is never read as a clean answer — on any
+  host, by design (fix the config). (e) In `chain`, the raw state is lowercased
+  and looked up in `states` (keys and targets lowercased on load) over the identity on `open` / `closed`; a
+  `states` target outside `open` / `closed` is a config error (that mapping ignored). An unmapped value yields
+  `roles=[]` and a note naming the raw value (`state '<raw>' not mapped`); a falsy state (absent, `null`,
+  `""`, `false`, `0` — v2's rule) is MISSING — `roles=[]` and no such note — so a missing field and an unmapped
+  value stay distinguishable; any other value is read as `str(value)`. (f) The ambiguity note is emitted once per read, as today. — serves
+  `costura-iris-fonte:F4`, `costura-iris-fonte:C7`, `f6-minimo:J3` — acceptance (EARS):
+  - "WHERE `forges."<h>"` is declared and a repo's slug host is `<h>`, the SYSTEM SHALL run that entry's
+    `command` (context) or `view` (chain) for the repo, with its `items` / `map` / `states` merged per key over
+    the top level";
+  - "WHERE a repo's slug host matches no `forges` key, or its slug is `local:`, the SYSTEM SHALL use the top-level
+    keys";
+  - "IF a repo has no resolved `command` (context) or a ref's repo has no resolved `view` (chain), THEN the SYSTEM
+    SHALL set `ok=False` and add one note per host naming it (or `no forge host`) with the count of repos or refs
+    it covers, containing "no `view` command" (chain) or "no `command`" (context)";
+  - "IF two `forges` keys are equal after lowercasing, THEN the SYSTEM SHALL use the first and ignore the later;
+    AND every read naming ≥1 `<repo>#<n>` ref SHALL carry a note naming it and `ok=False`";
+  - "WHEN a mixed registry is read with every host served, the SYSTEM SHALL return the issues of both forges with
+    `ok=True` and no unreadable note";
+  - "WHEN `view` returns state `opened` and `states` maps `opened = "open"`, the node SHALL carry `roles=['open']`;
+    WHEN it returns `closed` with that same table, `roles=['closed']`; WHEN it returns `OPENED` with `states = {
+    Opened = "open" }`, `roles=['open']`; WHEN it returns a value neither `states` nor the identity maps,
+    `roles=[]` and a note naming the value; WHEN the `view` JSON's state is falsy, `roles=[]` and no such note"
+    (the two stay distinguishable);
+  - "IF a `forges` value carries neither `command` nor `view`, or a `states` target is outside `open` / `closed`,
+    THEN the SYSTEM SHALL ignore it, AND every read naming ≥1 `<repo>#<n>` ref SHALL carry a note naming its key
+    and `ok=False`";
+  - "the existing tests SHALL pass unchanged". v3 is not claimed equivalent to v2 without `forges` / `states`: the
+    no-`view` path becomes per-ref (it reads the registry first, and its notes change) and a state outside
+    `open` / `closed` now yields `roles=[]` plus a note instead of the raw value as a role. The existing tests are
+    the compatibility bar.
+  — deliverable: persisted tests in `tests/test_tracker_source.py` (injected runner, two hosts, a `local:` repo),
+  one CLI-level `chain` test over a mixed registry. — depends on: SP-T6, `f6-minimo` F6-T7 (the guard the
+  `states` choice relies on)
+- **SP-T9 [v3]: docs made false by v3.** — serves `costura-iris-fonte:C6`, `C7` — deliverables: the
+  `tracker.py` module docstring ("never an org, host, or instance" → the adapter names none; the private config
+  may route by host) and its `view` comment (absent → per-ref, not whole-source); `sources.example.toml` (the
+  tracker block's "NEVER an org/host/instance" text; the `view` comment "Omit to leave `chain` disabled for this
+  source" → a host is chain-enabled by its own or the top-level `view`; an UNCOMMENTED `forges."<forge-host>"` glab entry, so the
+  docs check parses it: `glab issue list --output json -R https://{slug}`, `glab issue view
+  {number} -F json -R https://{slug}`, `number = "iid"`, `states = { opened = "open" }`); README (the chain
+  `view` requirement becomes per host); `docs/domain.md` Issue (canonical state values open|closed; an
+  unrecognised value is unknown — this task owns the Issue entry); `tests/test_docs_check.py` placeholder
+  assertion for tracker `forges` keys, run over the example as `load_config` parses it, asserting ≥1 key so it
+  cannot pass vacuously. Acceptance: "no
+  statement in `docs/`, `README.md`, `sources.example.toml` or `src/iris/` SHALL say the config never names a
+  host", and the docs check passes with the placeholder assertion. — depends on: SP-T8
 
 ## Coverage check (every build-relevant Brief ID → ≥1 task)
 
-- `F4` (earn-path composition) → SP-T1, SP-T3, SP-T5, SP-T6 [v2]
-- `C6` (iris owns cross-source composition; sources own within-source read) → SP-T1, SP-T2, SP-T7 [v2]
+- `F4` (earn-path composition) → SP-T1, SP-T3, SP-T5, SP-T6 [v2], SP-T8 [v3]
+- `C6` (iris owns cross-source composition; sources own within-source read) → SP-T1, SP-T2, SP-T7 [v2], SP-T9 [v3]
 - `C4` (uniform cross-harness interface — CLI ⋈ MCP parity) → SP-T4
-- `C7` / `S2` (source-agnostic adapter, provable by reading the code) → SP-T1, SP-T5
+- `C7` / `S2` (source-agnostic adapter, provable by reading the code) → SP-T1, SP-T5, SP-T8 [v3], SP-T9 [v3]
 - `S3` (earn datum for the earn-or-retire gate) → SP-T5
 - (No `PR*`: PRD stage skipped — see header. No task without a Brief-ID trace = no scope creep.)
 
@@ -272,7 +380,10 @@ implicit. Extend the model when a consumer validates a need for more issue field
 
 - **glab JSON field parity vs gh.** gh `issue list --json number,title` and glab differ in output shape /
   `@me` support (per `backlog/tracker.py` notes). Mitigation: the config-driven `map` (like `cli_json`)
-  absorbs field-name differences; SP-T1 tests both shapes via the injected runner.
+  absorbs field-name differences; SP-T1 tests both shapes via the injected runner. [v3] Field PATHS only: `map`
+  does not remap VALUES, and glab's state `opened` was read as discharged. Values go through `states` (SP-T8).
+  Flags differ too: glab's JSON switch is `--output json` on `issue list` and `-F json` on `issue view` (on
+  `list`, `-F` is `--output-format`) — probed 2026-11-19, shown in the example (SP-T9).
 - **Name collisions [v2]** (two registry entries that would take one name, e.g. one forge name on two hosts).
   Mitigation: SP-T6 makes the name ambiguous — no entry takes it, refs to it are UNKNOWN with a note — and the
   F6 trigger above fires on that note. None today (probe 2026-11-19, 31 entries).
@@ -293,6 +404,9 @@ implicit. Extend the model when a consumer validates a need for more issue field
 - **[v2] A checkout's `origin` names the repo's current forge home.** — invalidated by a stale remote after a
   forge rename (the membership check's `stale-remote` kind reports it); until fixed, the old forge name is
   the join identity.
+- **[v3] A repo's forge is named by its slug host.** — invalidated by two forges behind one host, or a remote
+  written with an ssh alias (it routes only if the alias is keyed, and a `{slug}` CLI cannot reach it; either
+  way the read fails loud, never silent).
 - **`gh`/`glab` is present in the environment where iris runs.** — invalidated if not; the tracker degrades to
   notes and `context` still returns repos (isolation holds).
 

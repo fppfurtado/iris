@@ -40,17 +40,19 @@ locator = "source"                                    # the record's locator (fi
 type = "type"                                         # the link type
 
 # A `tracker` source: open issues per repo from a forge CLI (gh/glab), joined to the repo registry
-# by identity to compose `repo ⋈ open-issues`. Source-agnostic by construction — you name the CLI
-# and the field map, NEVER an org/host/instance: the forge (incl. a private/institutional one) is
-# resolved from each repo checkout's own git remote, so nothing here discloses it. The CLI is run
-# with cwd set to each repo path discovered from the shared repo registry (`mrconfig`).
+# by identity to compose `repo ⋈ open-issues`. Source-agnostic by construction — the adapter names no
+# org/host/instance; you name the CLI and the field map, and the forge (incl. a private/institutional one)
+# is resolved from each repo checkout's own git remote. The CLI is run with cwd set to each repo path
+# discovered from the shared repo registry (`mrconfig`). Only when your registry spans several forges does
+# a host appear — as a `forges` key, below — and that belongs in your private sources.toml only.
 [sources.tracker]
 type = "tracker"
 # mrconfig = "~/.mrconfig"                              # optional; the same registry constellation uses
 command = ["gh", "issue", "list", "--state", "open", "--json", "number,title"]  # or a glab equivalent
 # The per-issue VIEW command enables `iris chain`: it fetches ONE issue by number incl. its state
 # (open/closed), so a dependency chain can show a discharged (closed) gate. `{number}` is substituted
-# per ref. Omit to leave `chain` disabled for this source (context is unaffected).
+# per ref. A repo is chain-enabled by its host's `view` (in `forges`, below) or this top-level one; a ref
+# whose repo has neither is reported unserved — never read as clear (context is unaffected).
 # view = ["gh", "issue", "view", "{number}", "--json", "number,title,state"]  # glab: "issue view"
 # `{slug}` in `command` or `view` is replaced by the repo's forge slug `<host>/<path>`, read from its own
 # checkout (never from this file), so the CLI reads the very repo the identity names instead of choosing a
@@ -63,6 +65,23 @@ command = ["gh", "issue", "list", "--state", "open", "--json", "number,title"]  
 number = "number"                                      # issue number field (glab: "iid")
 title = "title"                                        # issue title field
 # state = "state"                                       # issue state field for `chain` (glab: "state")
+# The state VALUES `view` returns map to the canonical open/closed through `states` (raw, case-insensitive
+# -> canonical); `open` and `closed` are always recognised beneath it, and any other value is reported
+# unmapped and read as an unknown state (never as closed). gh says OPEN/CLOSED for issues, but MERGED for
+# a ref to a pull request (`gh issue view` on a PR number), so map it:
+[sources.tracker.states]
+merged = "closed"
+
+# Forge per host: a `forges."<host>"` entry serves the repos whose `origin` host is <host>, overriding the
+# top-level command/view/items/map/states key by key (a key it omits is inherited; map and states merge).
+# QUOTE the host key: an unquoted dotted key nests into tables and is reported as a config error. A repo
+# whose host has no entry uses the top level; one served by neither is reported unserved. Keep real hosts
+# in your private sources.toml.
+[sources.tracker.forges."<forge-host>"]
+command = ["glab", "issue", "list", "--output", "json", "-R", "https://{slug}"]  # list: `--output json`
+view = ["glab", "issue", "view", "{number}", "-F", "json", "-R", "https://{slug}"]  # view: `-F json`
+map = { number = "iid", title = "title", state = "state" }
+states = { opened = "open" }                           # glab says `opened`
 
 # A `tasks` source: open task-list items (a GTD/next-action list) from a knowledge base, joined to the
 # repo registry by the `<repo>#<number>` references written in each task's text — so `context` shows,
