@@ -67,9 +67,10 @@ title = "title"                                        # issue title field
 # state = "state"                                       # issue state field for `chain` (glab: "state")
 # The state VALUES `view` returns map to the canonical open/closed through `states` (raw, case-insensitive
 # -> canonical); `open` and `closed` are always recognised beneath it, and any other value is reported
-# unmapped and read as an unknown state (never as closed). gh needs none (OPEN/CLOSED).
-# [sources.tracker.states]
-# reopened = "open"
+# unmapped and read as an unknown state (never as closed). gh says OPEN/CLOSED for issues, but MERGED for
+# a ref to a pull request (`gh issue view` on a PR number), so map it:
+[sources.tracker.states]
+merged = "closed"
 
 # Forge per host: a `forges."<host>"` entry serves the repos whose `origin` host is <host>, overriding the
 # top-level command/view/items/map/states key by key (a key it omits is inherited; map and states merge).

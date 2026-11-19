@@ -202,3 +202,37 @@ def test_cli_chain_over_a_mixed_registry(tmp_path, monkeypatch):
     assert "## candidate blockers" in out and "lab#3" in out.split("## resolved")[0]
     assert "hub#1  [closed]" in out
     assert "degraded" not in result.output and "unserved" not in result.output
+
+
+# --- review fixes R2/R3 (iris#81) ---
+
+
+def test_forges_key_matches_case_and_port_insensitively(tmp_path):
+    calls: list = []
+    opts = _opts(_registry(tmp_path))
+    opts["forges"] = {"GL.Example:2222": opts["forges"][_GL_HOST]}
+    src = TrackerSource("tracker", opts, runner=_runner(calls))
+    res = src.read(Query(text="lab#3", kinds=frozenset({KIND_NODES})))
+    assert res.ok, res.note
+    assert calls[-1][0] == "glab"
+
+
+def test_a_forges_entry_overrides_items(tmp_path):
+    opts = _opts(_registry(tmp_path))
+    opts["forges"][_GL_HOST]["items"] = "data"
+
+    def run(cmd, cwd):
+        return json.dumps({"data": [{"iid": 9, "title": "wrapped"}]})
+
+    res = TrackerSource("tracker", opts, runner=run).read(Query(text="lab#9", kinds=frozenset({KIND_NODES})))
+    assert [n.id for n in res.nodes] == ["lab#9"]
+
+
+def test_malformed_forges_values_are_config_errors_not_crashes(tmp_path):
+    opts = _opts(_registry(tmp_path))
+    opts["forges"][_GL_HOST]["map"] = "iid"  # not a table
+    src = TrackerSource("tracker", opts, runner=_runner())
+    res = src.read(Query(text="hub#1 lab#3", kinds=frozenset({KIND_NODES})))
+    assert not res.ok
+    assert f"forges.{_GL_HOST} has a malformed map" in res.note
+    assert [n.id for n in res.nodes] == ["hub#1"]  # gh still serves its host; lab falls to gh and fails loudly

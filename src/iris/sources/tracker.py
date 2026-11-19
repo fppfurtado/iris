@@ -48,6 +48,8 @@ _DEFAULT_TIMEOUT = 30.0
 _CANONICAL_STATES = ("open", "closed")
 _LOCAL_HOST = "no forge host"
 _KEYS = ("command", "view", "items", "map", "states")
+# The shape each `forges` key must have; an entry with another shape is a config error, not a read-time crash.
+_SHAPES = {"command": list, "view": list, "items": str, "map": dict, "states": dict}
 
 
 def _states_table(raw, where: str, errors: list[str]) -> dict[str, str]:
@@ -120,6 +122,10 @@ class TrackerSource:
             host = str(key).lower().split(":", 1)[0]
             if not isinstance(entry, dict) or not ("command" in entry or "view" in entry):
                 self._config_errors.append(f"config: forges.{key} carries no command or view (ignored)")
+                continue
+            bad = [k for k, kind in _SHAPES.items() if k in entry and not isinstance(entry[k], kind)]
+            if bad:
+                self._config_errors.append(f"config: forges.{key} has a malformed {', '.join(bad)} (ignored)")
                 continue
             if host in self._forges:
                 self._config_errors.append(f"config: forges.{key} duplicates host {host!r} (ignored)")
