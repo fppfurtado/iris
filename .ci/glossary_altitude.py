@@ -27,7 +27,13 @@ removed lines is not reported: an in-place edit of a line that carried it adds n
     python3 glossary_altitude.py check (--staged | --base <rev> [--head <rev>]) [--glossary <path>] [--repo <path>]
 
 Exit 1 iff tier A findings; 0 otherwise (including a change that does not touch the glossary); 2 with a JSON
-`error` on a usage or revision error AND on any unexpected failure — a crash must never read as a finding.
+`error` on a usage or revision error AND on any unexpected failure — a crash must never read as a finding. The
+exit-2 errors name what failed (agent-kit #3149 SP-TE9): a `--repo` that is not the root of a git work tree, a
+`--base`/`--head` that names no commit, a `--glossary` on neither side of the change (the index or HEAD for
+`--staged`; base, or head — the working tree without `--head`), a `--glossary` that is a symlink on a side (git
+diffs a link as its target's name; pass the file it points to) or behind a symlinked directory, and git failing. With `--staged` or `--head` the
+glossary is read from git objects, so the working-tree file's bytes cannot change the answer; without `--head` the
+working-tree file IS the head side.
 
 A glossary renamed or moved in the change is diffed against its old path, so a content-free move reports nothing.
 """
@@ -121,7 +127,9 @@ _GIT_SCRUBBED_ENV = ("GIT_DIR", "GIT_WORK_TREE")
 def git_run(repo, *args, timeout=None, text=True, encoding=None, errors=None):
     """`git -C <repo> <args>` -> CompletedProcess (stdout/stderr captured; never raises on a non-zero exit).
     `text=False` returns bytes (a blob read); `encoding`/`errors` pass through for text callers."""
-    env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUBBED_ENV}
+    # LC_ALL=C: a caller tells "not a git repository" from a failure by git's message (`git_read`), and the
+    # operator's locale would translate it (agent-kit #3337, the tracker's instance of the same read).
+    env = {**{k: v for k, v in os.environ.items() if k not in _GIT_SCRUBBED_ENV}, "LC_ALL": "C"}
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=text, encoding=encoding,
                           errors=errors, timeout=timeout, env=env)
 
@@ -131,27 +139,175 @@ def _git_proc(repo, *args):
     return git_run(repo, *args, errors="replace")
 
 
+def _git_ok(repo, *args):
+    """stdout of a git read whose answer the check needs; CheckError naming git when it fails (SP-TE9: a failing
+    read used to answer "no rename", or "unresolvable revision")."""
+    p = _git_proc(repo, *args)
+    if p.returncode:
+        raise _git_failed(p, args)
+    return p.stdout
+
+
+def _git_failed(p, args):
+    err = (p.stderr or "").strip()
+    return CheckError("git %s failed (exit %d): %s" % (" ".join(args), p.returncode,
+                                                       err.splitlines()[0] if err else "no message"))
+
+
+def _require_root(repo):
+    """CheckError unless `repo` is the root of a git work tree. A directory inside one passes `git -C` (git walks
+    up), and the glossary path then resolves under the subdirectory, where it is not."""
+    if not os.path.isdir(repo):
+        raise CheckError(f"--repo {repo!r} is not a directory")
+    p = _git_proc(repo, "rev-parse", "--show-toplevel")
+    if p.returncode == 128 and "not a git repository" in (p.stderr or ""):
+        raise CheckError(f"--repo {repo!r} is not a git repository")
+    top = _git_ok(repo, "rev-parse", "--show-toplevel").strip()
+    if os.path.realpath(top) != os.path.realpath(repo):
+        raise CheckError(f"--repo {repo!r} is not the root of its git work tree ({top})")
+
+
+def _is_commit(repo, rev):
+    """Whether `rev` names a commit. `--verify --quiet` exits 1 for "no such revision"; any other non-zero is git
+    failing, and a failing git read as an unresolvable revision before (SP-TE9)."""
+    args = ("rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}")
+    p = _git_proc(repo, *args)
+    if p.returncode in (0, 1):
+        return p.returncode == 0
+    raise _git_failed(p, args)
+
+
+_LINK_MODE = "120000"   # git's mode for a symlink entry
+
+
+def repo_relpath(repo, path):
+    """`path` relative to the repo root, as text, or None when it is not under the root. The root is the deepest
+    ancestor of `path` that IS the repo (same realpath), so a --repo or a --glossary spelled through a link to the
+    repo is held either way (review R3, delta read 3 F3); below that ancestor nothing is resolved: a link there is
+    the caller's to refuse (`linked_dir`). `domain_glossary` uses this one rule too."""
+    top = os.path.realpath(repo)
+    p = os.path.abspath(path)
+    a = os.path.dirname(p)
+    while True:
+        if os.path.realpath(a) == top:
+            return os.path.relpath(p, a)
+        parent = os.path.dirname(a)
+        if parent == a:
+            return None
+        a = parent
+
+
+def linked_dir(repo, rel):
+    """The first directory of `rel` that is a symlink in the working tree, else None. A working-tree read through it
+    reads a file git does not hold at that path, possibly outside the repo (delta read 3, F1/F2)."""
+    parts = rel.split(os.sep)[:-1]
+    cur = repo
+    for i, part in enumerate(parts):
+        cur = os.path.join(cur, part)
+        if os.path.islink(cur):
+            return os.sep.join(parts[:i + 1])
+    return None
+
+
+def link_left_by_dotdot(path):
+    """The first symlink in `path` (as given) that a later `..` steps back out of, else None. The system follows the
+    link before the `..`, but `abspath` collapses the pair as text, so the path would name one file and the tools
+    read another (delta read 4)."""
+    root = os.sep if os.path.isabs(path) else ""
+    stack = []   # (prefix, is_link) per component kept
+    for part in path.split(os.sep):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if stack:
+                prefix, is_link = stack.pop()
+                if is_link:
+                    return prefix
+            continue
+        prefix = os.path.join(stack[-1][0], part) if stack else root + part
+        stack.append((prefix, os.path.islink(prefix)))
+    return None
+
+
+def _rel(repo, glossary):
+    """The glossary's path relative to the repo root (a relative one is taken from the root); CheckError outside."""
+    path = glossary if os.path.isabs(glossary) else os.path.join(repo, glossary)
+    link = link_left_by_dotdot(path)
+    if link:
+        raise CheckError(f"--glossary {glossary!r} steps back out of the symlinked directory {link!r} with '..': "
+                         "pass the path without it")
+    rel = repo_relpath(repo, path)
+    if rel is None:
+        raise CheckError(f"--glossary {glossary!r} is outside --repo {repo!r}")
+    return rel
+
+
+def _sides(repo, rel, staged, base, head):
+    """[(where, mode)] for each side of the change that holds `rel`: the index, else HEAD (`--staged`); base, and head
+    or the working tree without --head. A literal pathspec: a path carrying `[` or `*` is a path, never a pattern."""
+    spec = f":(literal){rel}"
+    found = []
+    if staged:
+        for ln in _git_ok(repo, "ls-files", "--stage", "--", spec).splitlines():
+            found.append(("the index", ln.split()[0]))
+        revs = ["HEAD"] if not found and _is_commit(repo, "HEAD") else []
+    else:
+        revs = [base] + ([head] if head else [])
+        path = os.path.join(repo, rel)
+        if not head and os.path.lexists(path):
+            found.append(("the working tree", _LINK_MODE if os.path.islink(path) else "file"))
+    for rev in revs:
+        for ln in _git_ok(repo, "ls-tree", "--full-tree", rev, "--", spec).splitlines():
+            found.append((rev, ln.split()[0]))
+    return found
+
+
+def _require_held(repo, glossary, rel, staged, base, head):
+    """CheckError when no side of the change holds the glossary (a wrong --glossary, not "the change does not touch
+    the glossary", SP-TE9), or when a side holds it as a symlink: git diffs a link as its target's NAME, so the check
+    would read one line of path instead of the glossary (delta read 2, P1). The fix rounds that followed links
+    instead each broke a case the last one had right; the link is refused, never resolved. A working-tree side
+    (no --head) behind a linked directory is refused too: git holds no file at that path (delta read 3, F1/F2)."""
+    if not staged and not head:
+        d = linked_dir(repo, rel)
+        if d:
+            raise CheckError(f"--glossary {glossary!r} is behind the symlinked directory {d!r} in the working tree: "
+                             "pass the path the repo tracks")
+    sides = _sides(repo, rel, staged, base, head)
+    if not sides:
+        raise CheckError(f"--glossary {glossary!r} is on neither side of the change")
+    for where, mode in sides:
+        if mode == _LINK_MODE:
+            raise CheckError(f"--glossary {glossary!r} is a symlink in {where}: pass the file it points to")
+
+
 _PLAIN = ("--no-ext-diff", "--no-textconv", "--no-color")   # a user's diff.external / textconv must not hide lines
 
 
-def _rename_source(repo, glossary, staged, base, head):
-    """The glossary's path before the change when the change renamed or moved it, else None."""
+def _rename_source(repo, rel, staged, base, head):
+    """The glossary's path before the change when the change renamed or moved it, else None. `rel` is the path git
+    prints (relative to the root); comparing the --glossary as given missed a rename of an absolute one."""
     args = ["diff", "--cached", "-M", "--name-status", *_PLAIN] if staged else \
         ["diff", "-M", "--name-status", *_PLAIN, base] + ([head] if head else [])
-    for ln in _git_proc(repo, *args).stdout.splitlines():
+    for ln in _git_ok(repo, *args).splitlines():
         parts = ln.split("\t")
-        if parts[0].startswith("R") and len(parts) == 3 and parts[2] == glossary:
+        if parts[0].startswith("R") and len(parts) == 3 and parts[2] == rel:
             return parts[1]
     return None
 
 
 def _diff(repo, glossary, staged, base, head):
+    _require_root(repo)
     if not staged:
-        for rev in (base, head):
-            if rev is not None and _git_proc(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").returncode:
-                raise CheckError(f"unresolvable revision: {rev!r}")
-    old = _rename_source(repo, glossary, staged, base, head)
-    paths = ["--", old, glossary] if old else ["--", glossary]
+        for flag, rev in (("--base", base), ("--head", head)):
+            if rev is not None and not _is_commit(repo, rev):
+                raise CheckError(f"{flag} {rev!r} is not a commit")
+    # one path for every read, held, renamed and diffed alike: a held path that the diff did not read was a silent
+    # pass behind a symlinked directory (delta read 2, P2)
+    rel = _rel(repo, glossary)
+    _require_held(repo, glossary, rel, staged, base, head)
+    old = _rename_source(repo, rel, staged, base, head)
+    paths = ["--"] + [f":(literal){p}" for p in ((old, rel) if old else (rel,))]
     if staged:
         args = ["diff", "--cached", "-U0", "-M", *_PLAIN, *paths]
     else:
@@ -163,16 +319,22 @@ def _diff(repo, glossary, staged, base, head):
 
 
 def _parse_diff(diff):
-    """(added: [(new_line_no, text)], removed_text) from a -U0 unified diff of one file."""
-    added, removed, line_no = [], [], 0
+    """(added: [(new_line_no, text)], removed_text) from a -U0 unified diff of one file. `---`/`+++` are file headers
+    only before a file's first hunk (as in interface_forms): an added `++…` line or a removed `--…` line is content."""
+    added, removed, line_no, in_header = [], [], 0, False
     for ln in diff.splitlines():
+        if ln.startswith("diff --git "):
+            in_header = True
+            continue
         m = _HUNK.match(ln)
         if m:
-            line_no = int(m.group(1))
-        elif ln.startswith("+") and not ln.startswith("+++"):
+            line_no, in_header = int(m.group(1)), False
+        elif in_header:
+            continue
+        elif ln.startswith("+"):
             added.append((line_no, ln[1:]))
             line_no += 1
-        elif ln.startswith("-") and not ln.startswith("---"):
+        elif ln.startswith("-"):
             removed.append(ln[1:])
     return added, "\n".join(removed)
 
@@ -203,7 +365,9 @@ def _usage():
         "commands": {
             "check": "check (--staged | --base <rev> [--head <rev>]) [--glossary <path>] [--repo <path>] — "
                      f"--glossary defaults to {DEFAULT_GLOSSARY}; returns {{glossary, findings, candidates}}, each "
-                     "entry {line, class, token, text}; exit 1 iff findings, 0 otherwise, 2 on a usage/revision error",
+                     "entry {line, class, token, text}; exit 1 iff findings, 0 otherwise, 2 naming what failed: "
+                     "a usage error, a --repo that is not a work-tree root, a revision that names no commit, a "
+                     "--glossary on neither side of the change, git failing",
         },
         "consumer_page": "GLOSSARY_ALTITUDE.md (vendoring, the pre-commit hook, the CI step)",
     }
@@ -233,8 +397,10 @@ def parse_strict_argv(cmd, arity, args, positionals=0, json_errors=True):
     `arity` maps each accepted flag to ARGV_VALUE (`--f <v>`; a bare `--f` is refused), ARGV_SWITCH
     (a bare `--f` -> True; `--f <v>` is refused) or ARGV_OPTIONAL (absent, bare -> True, or `--f <v>`).
     `flags` holds only the flags given, plus "_positional" (a list) when `positionals` > 0.
-    Refused with exit 2, before any side effect: an undeclared flag, a value flag with no value, a switch
-    given a value, a positional beyond `positionals`. `-h`/`--help` prints the flags and returns exit 0.
+    Refused with exit 2, before any side effect: an undeclared flag, an ARGV_VALUE flag with no value or an
+    empty one (`--f ""`: read downstream as absent, it would end as a success; agent-kit #3149), a switch
+    given a value, a positional beyond `positionals`. An ARGV_OPTIONAL flag's empty value is kept: the
+    tool reads it as its bare form. `-h`/`--help` prints the flags and returns exit 0.
     """
     # The old parsers' token rule, kept: a value flag takes the next token unless it starts with `--`.
     # Joining it as `--f=<v>` first stops argparse refusing a value that starts with `-` (`--body "- item"`).
@@ -250,7 +416,9 @@ def parse_strict_argv(cmd, arity, args, positionals=0, json_errors=True):
             i += 1
     usage = sorted("--" + f for f in arity)
     if "-h" in joined or "--help" in joined:
-        print(json.dumps({"command": cmd, "flags": usage, "positionals": positionals}))
+        # `values`: the flags that take a value, so a caller can build a valid argv from this help alone
+        values = sorted("--" + f for f, k in arity.items() if k in (ARGV_VALUE, ARGV_OPTIONAL))
+        print(json.dumps({"command": cmd, "flags": usage, "values": values, "positionals": positionals}))
         return None, 0
     parser = _StrictArgvParser(prog=cmd, add_help=False, allow_abbrev=False)
     for name, kind in arity.items():
@@ -267,6 +435,9 @@ def parse_strict_argv(cmd, arity, args, positionals=0, json_errors=True):
         extra = flags.get("_positional", [])[positionals:]
         if extra:
             raise _ArgvError("unrecognized arguments: " + " ".join(extra))
+        empty = sorted("--" + f for f, v in flags.items() if arity.get(f) == ARGV_VALUE and v == "")
+        if empty:
+            raise _ArgvError(f"argument {empty[0]}: expected a non-empty value")
     except _ArgvError as e:
         msg = f"{cmd}: {e}"
         print(json.dumps({"error": msg, "flags": usage}) if json_errors else f"{msg} (accepts: {' '.join(usage)})",
@@ -278,9 +449,10 @@ def parse_strict_argv(cmd, arity, args, positionals=0, json_errors=True):
 
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else ""
-    if cmd in ("", "-h", "--help", "help") or "--help" in argv[2:] or "-h" in argv[2:]:
+    if cmd in ("", "-h", "--help", "help") or (cmd != "check" and ("--help" in argv[2:] or "-h" in argv[2:])):
         print(json.dumps(_usage(), indent=2))
         return 0
+    # `check --help` falls through: the strict block prints the command's flags and the ones taking a value
     try:
         if cmd != "check":
             raise CheckError(f"unknown command: {cmd!r}")
