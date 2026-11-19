@@ -1,11 +1,11 @@
 # Spec: F6-mínimo — resolvedor de cadeia de dependências cross-repo por ref-em-prosa
 
-- Frozen at: 2026-09-09
-- Spec version: v1.1 (DRAFT — not frozen)
+- Frozen at: 2026-09-09 (v1) · 2026-11-19 (v1.1)
+- Spec version: v1.1
 - Source: Problem Brief `briefs/f6-minimo-cross-repo-dep-chain.BRIEF.md` v1 (frozen 2026-09-09) — PRD skipped
   (feature dentro de produto existente; Vision/PRD dispensados, SP* citam Brief J*/S* direto)
-- Status: frozen after approval on 2026-09-09 (operador "Congelar + build agora"); v1.1 draft 2026-11-19,
-  aguardando a leitura pré-freeze e a aprovação do operador
+- Status: frozen after approval on 2026-09-09 (operador "Congelar + build agora"); v1.1 congelada em
+  2026-11-19 — the operator delegated the freeze call ("delego", 2026-11-19, to "run one more read, or freeze now?"); frozen after a third delta read (0 High, 2 Medium, 4 Low) whose fold only pins the ref kind, removes a claim that failed twice, and records consequences — that fold is unread
 - Amendments: **v1.1 (2026-11-19, iris#81).** O vocabulário de estado passa a ser fechado e POR KIND: uma issue
   é candidata-a-bloqueador só com role `open` e descarregada só com `closed`; uma task, `open` / `done`; qualquer
   outro valor (ou nenhum) é `state_unknown` — antes, todo role não-`open` contava como descarregado. Porquê: o glab devolve

@@ -1,13 +1,13 @@
 # Spec: item inbound context — `iris inbound <key>`
 
-- Frozen at: 2026-10-29 (v1) · 2026-11-11 (v2)
-- Spec version: v3 (DRAFT — not frozen)
+- Frozen at: 2026-10-29 (v1) · 2026-11-11 (v2) · 2026-11-19 (v3)
+- Spec version: v3
 - Source: Problem Brief `briefs/item-inbound-context.BRIEF.md` v1 (frozen 2026-10-29) — PRD skipped (a feature
   inside an existing product, the same path the F6-mínimo Spec took; tasks cite Brief J*/S* directly)
 - Status: v1 frozen after approval on 2026-10-29 (operator "sim" to "Freeze the Spec as v1?"); v2 frozen after
   approval on 2026-11-11 (operator "sim" to the v2 freeze question). Independent read: ran — blind-critic
-  J5/J6/J3/J1 (2026-11-11), 6 findings, all disposed in this text; v3 draft 2026-11-19, awaiting the pre-freeze
-  read and the operator's approval
+  J5/J6/J3/J1 (2026-11-11), 6 findings, all disposed in this text; v3 frozen on 2026-11-19 —
+  the operator delegated the freeze call ("delego", 2026-11-19, to "run one more read, or freeze now?"); frozen after a third delta read (0 High, 2 Medium, 4 Low) whose fold only pins the ref kind, removes a claim that failed twice, and records consequences — that fold is unread
 - Amendments: **v3 (2026-11-19, iris#81).** The item's state and each citing task's state follow the closed,
   per-kind state vocabulary of `f6-minimo` v1.1 (F6-T7), computed ONCE in `compose_inbound` (so CLI and MCP keep
   parity by construction): `InboundContext.item_state` and each task's state are the `lifecycle_state` value or
@@ -131,7 +131,8 @@ InboundContext → CLI / MCP`.
 - CLI `iris inbound <key>`: sections `## item` (key, state, title; or `unknown — could not resolve`; (v3) the
   state is the composer's `item_state`, printed `[open|closed|done]` or `[state unknown]`), `## tasks
   citing <key>` (`^<id>  [open|done]  <first line>`; (v2) `^<id>  [state unknown]` for an unresolved task; (v3)
-  `^<id>  [state unknown]  <first line>` for a resolved task whose state is outside the vocabulary),
+  `^<id>  [state unknown]  <first line>` for a resolved task with no state in the vocabulary — the first line is
+  printed whenever the title is non-empty),
   `## citations` (`<locator>  [<type>]`), `## unknown` (each degraded source name — never folded into "no
   citations"), and (v2) `## searched` (each `searched` name) and `## not searched` (each `not_covered` entry),
   both always printed. Invalid key → message on stderr, exit 2. No records and nothing unknown → (v2)
@@ -286,9 +287,12 @@ resolves which of its records cite the key, tasks included). No new cross-cuttin
   "WHEN the item resolves with a state `lifecycle_state` recognises, the CLI SHALL print it as `[<state>]` and
   the MCP `item.state` SHALL equal it"; "WHEN the item resolves with no role or a role outside its kind's
   vocabulary (e.g. `opened`), the CLI SHALL print `[state unknown]` and the MCP `item.state` SHALL be
-  `"unknown"`"; "WHEN a citing task resolves with a title and a role outside `open|done`, the CLI SHALL print
-  `^<id>  [state unknown]  <first line>` and MCP `tasks[].state` SHALL be `"unknown"`"; "WHEN a citing task is
-  unresolved, the CLI SHALL print `^<id>  [state unknown]` as in v2"; "the `item` record SHALL keep its other fields unchanged" —
+  `"unknown"`"; "WHEN a citing task resolves with a title and no role in `open|done`, the CLI SHALL print
+  `^<id>  [state unknown]  <first line>` and MCP `tasks[].state` SHALL be `"unknown"`"; "WHILE the tracker is
+  degraded by a config error, the CLI SHALL NOT print that no records cite the key, though the tracker is not in
+  `searched`" (the consequence of SP-T8's config-error rule, accepted); "WHEN a citing task is
+  unresolved, the CLI SHALL print `^<id>  [state unknown]` as in v2"; "the `item` record SHALL keep its other fields as the state pass returned them" (its `roles` are the
+  source's, which `spec-repo-issues-federation` v3 SP-T8 normalises) —
   persisted tests in tests/test_compose.py, tests/test_cli_commands.py and tests/test_mcp_adapter.py; doc made
   false: the MCP `inbound` docstring (names `item.state`; a task is `unknown` when unresolved OR out of
   vocabulary) and the CLI `inbound` docstring ("with its open/done state" → or state unknown) — depends on: `f6-minimo` F6-T7
